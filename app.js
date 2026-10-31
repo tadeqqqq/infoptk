@@ -188,6 +188,8 @@ const checked = loadSet(CHECK_KEY);
 
 function renderHome() {
   const c = DATA.contacts;
+  const total = DATA.rules.length;
+  const done = DATA.rules.filter((r) => readRules.has(r.id)).length;
   const view = $("#view-home");
   view.innerHTML = `
     <header class="band band-home">
@@ -211,6 +213,10 @@ function renderHome() {
       row({ title: "Учебная часть", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }),
       row({ title: "Что делать при пожаре", chevron: true, onClick: () => openGuide(DATA.safety[0]) }),
       row({ title: "Где поесть", chevron: true, onClick: () => jumpTo("nearby", () => setNearbyKind("food")) }),
+      row({
+        title: "Правила колледжа", chevron: true, onClick: () => jumpTo("rules", scrollToRules),
+        value: done === total ? "всё прочитано" : `прочитано ${done} из ${total}`,
+      }),
     ])}
 
     ${group([
@@ -550,6 +556,12 @@ function openRule(r) {
   render();
 }
 
+// Прокрутить вкладку «Студенту» к правилам (переход с главной)
+function scrollToRules() {
+  const cap = $("#rulesCaption");
+  if (cap) requestAnimationFrame(() => window.scrollTo({ top: cap.getBoundingClientRect().top + window.scrollY - 12 }));
+}
+
 // Вкладка «Студенту»: первая неделя, правила колледжа, важное (выплаты, общежитие, справки)
 function renderRules() {
   const view = $("#view-rules");
@@ -566,7 +578,7 @@ function renderRules() {
     ${group(DATA.important.map((it) => row({ title: it.title, subtitle: it.sub, chevron: true, onClick: () => openImportant(it) })),
       "Важное", "Кому положено, какие документы нужны и куда идти.")}
 
-    <h2 class="group-caption">Правила колледжа: прочитано ${done} из ${total}</h2>
+    <h2 class="group-caption" id="rulesCaption">Правила колледжа: прочитано ${done} из ${total}</h2>
     <div class="bar bar-tight" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}">${DATA.rules.map((r) => `<i${readRules.has(r.id) ? ' class="on"' : ""}></i>`).join("")}</div>
     ${group(DATA.rules.map((r) => row({
       title: r.title, chevron: true, onClick: () => openRule(r),
