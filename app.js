@@ -109,7 +109,7 @@ function openDetail(html) {
   $(".tabs").hidden = true;
   $("#detail").hidden = false;
   window.scrollTo({ top: 0 });
-  if (inTelegram) tg.BackButton.show();
+  updateBack();
 }
 
 function closeDetail() {
@@ -118,16 +118,52 @@ function closeDetail() {
   $("#screens").hidden = false;
   $(".tabs").hidden = false;
   window.scrollTo({ top: lastScroll });
-  if (inTelegram) tg.BackButton.hide();
+  updateBack();
 }
 
 // «Назад» в шапке и в Telegram идёт через историю — так всё работает одинаково с кнопкой телефона
 function goBack() {
-  if (history.state && history.state.detail) history.back();
-  else closeDetail();
+  if (history.state && (history.state.detail || history.state.jump)) history.back();
+  else if (!$("#detail").hidden) closeDetail();
+  else if (jumpFrom) returnFromJump();
 }
-window.addEventListener("popstate", () => closeDetail());
+window.addEventListener("popstate", () => {
+  if (!$("#detail").hidden) closeDetail();
+  else if (jumpFrom) returnFromJump();
+});
+
+// Переход в другой раздел по ссылке (например, «Где поесть» с главной): как у подробностей,
+// появляется «Назад», который возвращает туда, откуда пришёл
+let jumpFrom = null;
+const currentView = () => VIEWS.find((v) => !$("#view-" + v).hidden) || "home";
+
+function jumpTo(name, setup) {
+  const from = currentView();
+  if (!$("#detail").hidden) closeDetail();
+  showView(name);
+  if (setup) setup();
+  try { history.pushState({ jump: from }, "", "#" + name); } catch { /* без истории — только кнопка «Назад» */ }
+  jumpFrom = from;
+  updateBack();
+}
+
+function returnFromJump() {
+  const to = jumpFrom;
+  jumpFrom = null;
+  showView(to, true);
+  updateBack();
+}
+
+// Кнопка «Назад»: в Telegram — его кнопка в шапке, в браузере — своя полоса сверху
+function updateBack() {
+  const detailOpen = !$("#detail").hidden;
+  if (inTelegram) {
+    if (detailOpen || jumpFrom) tg.BackButton.show(); else tg.BackButton.hide();
+  }
+  $("#jumpBar").hidden = inTelegram || detailOpen || !jumpFrom;
+}
 $("#backBtn").addEventListener("click", goBack);
+$("#jumpBack").addEventListener("click", goBack);
 if (inTelegram) tg.BackButton.onClick(goBack);
 
 // ---------- Главная ----------
@@ -171,9 +207,9 @@ function renderHome() {
     ${group([
       row({ title: "Учебная часть", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }),
       row({ title: "Что делать при пожаре", chevron: true, onClick: () => openGuide(DATA.safety[0]) }),
-      row({ title: "Где поесть", chevron: true, onClick: () => showView("nearby") }),
+      row({ title: "Где поесть", chevron: true, onClick: () => jumpTo("nearby", () => setNearbyKind("food")) }),
       row({
-        title: "Правила колледжа", chevron: true, onClick: () => showView("rules"),
+        title: "Правила колледжа", chevron: true, onClick: () => jumpTo("rules"),
         value: done === total ? "всё прочитано" : `прочитано ${done} из ${total}`,
       }),
     ])}
@@ -313,7 +349,7 @@ const checkedCount = () => DATA.checklist.filter((i) => checked.has(i.id)).lengt
 
 function checklistGo(link) {
   if (link === "fire") return openGuide(DATA.safety[0]);
-  showView(link);
+  jumpTo(link);
 }
 
 function openChecklist() {
@@ -412,18 +448,41 @@ function toggleRule(id) {
   if (inTelegram) tg.HapticFeedback.selectionChanged();
 }
 
+// Следующее непрочитанное правило после текущего (по кругу)
+function nextUnreadRule(r) {
+  const i = DATA.rules.indexOf(r);
+  const order = [...DATA.rules.slice(i + 1), ...DATA.rules.slice(0, i)];
+  return order.find((x) => !readRules.has(x.id)) || null;
+}
+
 function openRule(r) {
   const render = () => {
     const isRead = readRules.has(r.id);
+    const pos = DATA.rules.indexOf(r) + 1;
     openDetail(`
+      <p class="rule-pos">Правило ${pos} из ${DATA.rules.length}</p>
       <h1 class="detail-title">${esc(r.title)}</h1>
       <p class="detail-text">${esc(r.text)}</p>
       ${r.points ? `<ul class="points">${r.points.map((pt) => `<li>${esc(pt.t)}${pt.ask ? '<span class="ask">Уточнить в колледже</span>' : ""}</li>`).join("")}</ul>` : ""}
       ${r.sources ? `<p class="rule-source">${esc(DATA.rulesDoc.title)}, ${esc(r.sources).replace(/(п\.|ст\.|№) /g, "$1&nbsp;")}</p>` : ""}
-      <button class="primary${isRead ? " is-done" : ""}" data-act="${act(() => { toggleRule(r.id); renderRules(); renderHome(); render(); })}">
+      <button class="primary${isRead ? " is-done" : ""}" data-act="${act(() => {
+        const wasRead = readRules.has(r.id);
+        toggleRule(r.id);
+        renderRules();
+        renderHome();
+        if (wasRead) return render(); // сняли отметку — остаёмся на этом правиле
+        const next = nextUnreadRule(r);
+        if (next) {
+          showToast(`Отмечено. Дальше: «${next.title}»`);
+          openRule(next);
+        } else {
+          showToast("Все правила прочитаны");
+          goBack();
+        }
+      })}">
         ${isRead ? svg("check") + "Ознакомлен" : "Я ознакомился"}
       </button>
-      ${isRead ? '<p class="group-footer center">Нажми ещё раз, чтобы снять отметку.</p>' : ""}
+      ${isRead ? '<p class="group-footer center">Нажми ещё раз, чтобы снять отметку.</p>' : '<p class="group-footer center">После отметки откроется следующее правило.</p>'}
     `);
   };
   render();
@@ -455,24 +514,154 @@ let peopleGroup = "Все";
 
 const initials = (name) => { const [last, first] = name.split(" "); return first[0] + last[0]; };
 
+// ---------- Мои заметки о педагогах (хранятся только на этом телефоне) ----------
+
+const NOTES_KEY = "infoptk-notes";
+function loadNotes() {
+  try { return JSON.parse(localStorage.getItem(NOTES_KEY) || "{}") || {}; } catch { return {}; }
+}
+const notes = loadNotes();
+function saveNotes() {
+  try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); return true; } catch { return false; }
+}
+const noteOf = (p) => notes[p.name] || null;
+const hasNote = (n) => n && (n.room || n.subject || n.contact || n.text || n.photo);
+
+// Уменьшаем фото до 320px, чтобы много заметок с фото поместилось в память телефона
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const side = Math.min(img.width, img.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 320;
+        canvas.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 320, 320);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function openNoteEditor(p) {
+  const n = { ...(noteOf(p) || {}) };
+  openDetail(`
+    <h1 class="detail-title">Заметка</h1>
+    <p class="detail-text">${esc(p.name)}. Заметку видишь только ты, она хранится на этом телефоне.</p>
+    <div class="note-photo">
+      <img id="notePhotoImg" class="avatar big avatar-photo"${n.photo ? ` src="${n.photo}"` : " hidden"} alt="">
+      <label class="note-photo-btn">
+        <input type="file" id="notePhotoInput" accept="image/*" hidden>
+        <span id="notePhotoLabel">${n.photo ? "Заменить фото" : "Добавить фото"}</span>
+      </label>
+      <button class="note-photo-del" id="notePhotoDel"${n.photo ? "" : " hidden"}>Убрать фото</button>
+    </div>
+    <div class="form">
+      <label class="field"><span>Кабинет</span><input id="noteRoom" maxlength="20" value="${esc(n.room || "")}" placeholder="Например, 305"></label>
+      <label class="field"><span>Что ведёт</span><input id="noteSubject" maxlength="120" value="${esc(n.subject || "")}" placeholder="Например, математика"></label>
+      <label class="field"><span>Как связаться</span><input id="noteContact" maxlength="120" value="${esc(n.contact || "")}" placeholder="Телефон, почта, ВК или Telegram"></label>
+      <label class="field"><span>Заметка</span><textarea id="noteText" rows="4" maxlength="1000" placeholder="Когда консультации, что сдавать, что важно на парах">${esc(n.text || "")}</textarea></label>
+    </div>
+    <button class="primary" id="noteSave">Сохранить</button>
+    ${hasNote(noteOf(p)) ? '<button class="secondary danger" id="noteDelete">Удалить заметку</button>' : ""}
+  `);
+
+  const photoImg = $("#notePhotoImg");
+  $("#notePhotoInput").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      n.photo = await shrinkPhoto(file);
+      photoImg.src = n.photo;
+      photoImg.hidden = false;
+      $("#notePhotoLabel").textContent = "Заменить фото";
+      $("#notePhotoDel").hidden = false;
+    } catch {
+      showToast("Не получилось открыть фото. Попробуй другое.");
+    }
+  });
+  $("#notePhotoDel").addEventListener("click", () => {
+    delete n.photo;
+    photoImg.hidden = true;
+    photoImg.removeAttribute("src");
+    $("#notePhotoLabel").textContent = "Добавить фото";
+    $("#notePhotoDel").hidden = true;
+  });
+  $("#noteSave").addEventListener("click", () => {
+    n.room = $("#noteRoom").value.trim();
+    n.subject = $("#noteSubject").value.trim();
+    n.contact = $("#noteContact").value.trim();
+    n.text = $("#noteText").value.trim();
+    Object.keys(n).forEach((k) => { if (!n[k]) delete n[k]; });
+    const before = notes[p.name];
+    if (hasNote(n)) notes[p.name] = n; else delete notes[p.name];
+    if (!saveNotes()) {
+      if (before) notes[p.name] = before; else delete notes[p.name];
+      showToast("Не хватает памяти на телефоне. Убери фото или сократи заметку.");
+      return;
+    }
+    renderPeopleList();
+    showToast("Заметка сохранена");
+    openPerson(p);
+  });
+  const del = $("#noteDelete");
+  if (del) del.addEventListener("click", () => {
+    delete notes[p.name];
+    saveNotes();
+    renderPeopleList();
+    showToast("Заметка удалена");
+    openPerson(p);
+  });
+}
+
+// По справочнику колледжа: на 97-42-06 внутренний номер называют как добавочный, через вахту 97-42-15 — тоже
+const MAIN_LINE = "97-42-06";
+function phoneHint(p) {
+  if (!p.phone || !p.ext) return "";
+  if (p.phone === MAIN_LINE) return `Набери ${MAIN_LINE} и назови добавочный ${p.ext}. Или позвони на вахту 97-42-15 и попроси соединить.`;
+  return `Если не дозвонишься, набери ${MAIN_LINE} и назови добавочный ${p.ext}.`;
+}
+
 function openPerson(p) {
   const c = DATA.contacts;
+  const n = noteOf(p);
+  const photo = p.photo || (n && n.photo);
+  const room = p.room || (n && n.room);
   const rows = [];
-  rows.push(p.room
-    ? row({ title: "Кабинет", plate: p.room })
+  rows.push(room
+    ? row({ title: "Кабинет", subtitle: p.room ? "" : "Из твоей заметки", plate: room })
     : row({ title: "Кабинет", subtitle: "Подскажут в учебной части", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
-  if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? `Добавочный ${p.ext}` : "Городской", href: tel(p.phone) }));
+  if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? (p.phone === MAIN_LINE ? `Добавочный ${p.ext}` : `Прямой, внутренний ${p.ext}`) : "Городской", href: tel(p.phone) }));
   rows.push(row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }));
-  openDetail(`
+
+  const noteRows = [];
+  if (n && n.subject) noteRows.push(`<div class="note-line"><span>Что ведёт</span><b>${esc(n.subject)}</b></div>`);
+  if (n && n.contact) noteRows.push(`<div class="note-line"><span>Как связаться</span><b>${esc(n.contact)}</b></div>`);
+  if (n && n.room && p.room && n.room !== p.room) noteRows.push(`<div class="note-line"><span>Кабинет</span><b>${esc(n.room)}</b></div>`);
+  if (n && n.text) noteRows.push(`<div class="note-line"><span>Заметка</span><p>${esc(n.text)}</p></div>`);
+
+  // Открываем карточку с нуля, если пришли из редактора, — чтобы «Назад» вёл к списку
+  const html = `
     <div class="detail-hero">
-      ${p.photo
-        ? `<img class="avatar big avatar-photo" src="${p.photo}" alt="${esc(p.name)}">`
+      ${photo
+        ? `<img class="avatar big avatar-photo" src="${photo}" alt="${esc(p.name)}">`
         : `<span class="avatar big${p.group === "Руководство" ? " is-strong" : ""}">${esc(initials(p.name))}</span>`}
       <h1>${esc(p.name)}</h1>
       <p>${esc(p.role)}</p>
     </div>
-    ${group(rows)}
-  `);
+    ${p.extra ? `<p class="person-extra">${esc(p.extra)}</p>` : ""}
+    ${group(rows, "", phoneHint(p))}
+    <h2 class="group-caption">Мои заметки</h2>
+    ${noteRows.length ? `<div class="group note-box">${noteRows.join("")}</div>` : ""}
+    <button class="secondary" data-act="${act(() => openNoteEditor(p))}">${hasNote(n) ? "Изменить заметку" : "Добавить заметку"}</button>
+    <p class="group-footer">${hasNote(n) ? "Видишь только ты, хранится на этом телефоне." : "Запиши кабинет, что ведёт, как связаться, добавь фото. Видишь только ты."}</p>
+  `;
+  openDetail(html);
 }
 
 function renderPeople() {
@@ -511,17 +700,25 @@ function renderPeople() {
 function renderPeopleList() {
   const norm = (s) => s.toLowerCase().replace(/ё/g, "е");
   const q = norm(peopleQuery.trim());
-  const match = (p) => !q || [p.name, p.role, p.room || ""].some((f) => norm(f).includes(q));
+  const match = (p) => {
+    if (!q) return true;
+    const n = noteOf(p) || {};
+    return [p.name, p.role, p.room || "", p.extra || "", n.room || "", n.subject || "", n.text || ""].some((f) => norm(f).includes(q));
+  };
   const groups = (peopleGroup === "Все" ? DATA.staffGroups : [peopleGroup])
     .map((g) => [g, DATA.staff.filter((p) => p.group === g && match(p))])
     .filter(([, list]) => list.length);
 
   const box = $("#peopleList");
   box.innerHTML = groups.length
-    ? groups.map(([g, list]) => group(list.map((p) => row({
-        avatarPhoto: p.photo, avatar: initials(p.name), avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.role, plate: p.room, chevron: true,
-        onClick: () => openPerson(p),
-      })), g)).join("")
+    ? groups.map(([g, list]) => group(list.map((p) => {
+        const n = noteOf(p) || {};
+        return row({
+          avatarPhoto: p.photo || n.photo, avatar: initials(p.name), avatarStrong: p.group === "Руководство", title: p.name,
+          subtitle: n.subject ? `Ведёт: ${n.subject}` : p.role, plate: p.room || n.room, chevron: true,
+          onClick: () => openPerson(p),
+        });
+      }), g)).join("")
     : `<p class="empty">Никого не нашли. Проверь фамилию или выбери «Все».</p>`;
   bindActions(box);
 }
@@ -529,6 +726,10 @@ function renderPeopleList() {
 // ---------- Рядом: еда и спорт ----------
 
 let nearbyKind = "food";
+function setNearbyKind(kind) {
+  nearbyKind = kind;
+  renderNearby();
+}
 
 function openPlace(p, kind) {
   const facts = [
@@ -666,7 +867,11 @@ function showView(name) {
 }
 
 document.querySelectorAll(".tabs [role=tab]").forEach((tab) => {
-  tab.addEventListener("click", () => showView(tab.dataset.view));
+  tab.addEventListener("click", () => {
+    jumpFrom = null; // ушли на вкладку сами — «Назад» к прошлому разделу больше не нужен
+    showView(tab.dataset.view);
+    updateBack();
+  });
 });
 
 if (inTelegram) {

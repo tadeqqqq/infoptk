@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=202610311658">
+  <link rel="stylesheet" href="styles.css?v=202610311733">
   <!-- Нужен, чтобы приложение работало внутри Telegram. В обычном браузере ничего не делает. -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
@@ -17,6 +17,13 @@
   <div class="app">
     <!-- Главные экраны (вкладки) -->
     <main id="screens">
+      <!-- Появляется, когда раздел открыт по ссылке (например, «Где поесть» с главной) -->
+      <header class="detail-bar jump-bar" id="jumpBar" hidden>
+        <button class="back" id="jumpBack">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          Назад
+        </button>
+      </header>
       <section class="screen" id="view-home"></section>
       <section class="screen" id="view-safety" hidden></section>
       <section class="screen" id="view-rules" hidden></section>
@@ -59,7 +66,7 @@
     </nav>
   </div>
 
-  <script src="data.js?v=202610311658"></script>
-  <script src="app.js?v=202610311658"></script>
+  <script src="data.js?v=202610311733"></script>
+  <script src="app.js?v=202610311733"></script>
 </body>
 </html>

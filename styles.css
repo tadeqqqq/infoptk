@@ -772,3 +772,83 @@ svg {
   }
   body:not(.in-telegram) .tabs { box-shadow: 0 0 0 1px #D5DDF0; }
 }
+
+/* ---------- «Назад» после перехода в раздел по ссылке ---------- */
+.jump-bar:not([hidden]) ~ .screen .band { padding-top: 18px; }
+
+/* ---------- Карточка педагога: пояснение и мои заметки ---------- */
+.person-extra {
+  margin: 16px 4px 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.person-extra + .group { margin-top: 14px; }
+
+.note-box { padding: 4px 0; }
+.note-line { padding: 10px 16px; }
+.note-line + .note-line { border-top: 1px solid var(--sep); }
+.note-line span { display: block; font-size: 13px; color: var(--hint); }
+.note-line b { font-weight: 400; }
+.note-line p { margin-top: 2px; white-space: pre-wrap; line-height: 1.45; }
+.note-box + .secondary { margin-top: 12px; }
+
+.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  margin-top: 4px;
+  border-radius: 14px;
+  background: var(--cell);
+  color: var(--brand);
+  font-weight: 700;
+}
+.secondary.danger { margin-top: 12px; color: var(--danger); }
+
+/* Редактор заметки */
+.note-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.note-photo-btn {
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--brand-tint);
+  color: var(--brand);
+  font-weight: 700;
+  cursor: pointer;
+}
+.note-photo-del { color: var(--danger); font-size: 15px; }
+
+.form {
+  margin-top: 20px;
+  padding: 4px 0;
+  border-radius: 14px;
+  background: var(--cell);
+}
+.field { display: block; padding: 10px 16px; }
+.field + .field { border-top: 1px solid var(--sep); }
+.field span { display: block; font-size: 13px; color: var(--hint); }
+.field input, .field textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+}
+.field input::placeholder, .field textarea::placeholder { color: #A3AABA; }
+.field:focus-within span { color: var(--brand); }
+
+/* Правило: номер в списке */
+.rule-pos { margin: 18px 4px 0; font-size: 14px; color: var(--hint); }
+.rule-pos + .detail-title { margin-top: 4px; }
