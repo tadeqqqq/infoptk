@@ -214,6 +214,9 @@ function renderHome() {
       }),
     ])}
 
+    ${group(DATA.important.map((it) => row({ title: it.title, subtitle: it.sub, chevron: true, onClick: () => openImportant(it) })),
+      "Важное", "Стипендии, льготы, общежитие и справки: кому положено, какие документы и куда идти.")}
+
     ${group([
       row({ title: c.address, subtitle: "Открыть на карте", href: mapUrl(`Великий Новгород, ${c.address}`), external: true }),
       row({ title: c.phone, subtitle: `Приёмная, с ${c.hours.replace("–", " до ")}`, href: tel(c.phone) }),
@@ -408,6 +411,31 @@ function openGlossary() {
   `);
 }
 
+// ---------- Важное: выплаты, общежитие, справки ----------
+
+function openImportant(it) {
+  const contactRows = [];
+  it.contacts.forEach((c) => {
+    contactRows.push(row({
+      title: c.title,
+      subtitle: c.ext ? `${c.sub}. Добавочный ${c.ext}` : c.sub,
+      value: c.phone, href: tel(c.phone),
+    }));
+    if (c.email) contactRows.push(row({ title: c.email, subtitle: "Почта", href: `mailto:${c.email}` }));
+  });
+  const hasAsk = it.blocks.some((b) => b.items.some((x) => x.ask));
+  openDetail(`
+    <h1 class="detail-title">${esc(it.title)}</h1>
+    <p class="detail-text">${esc(it.lead)}</p>
+    ${it.blocks.map((b) => `
+      <h2 class="group-caption">${esc(b.title)}</h2>
+      <ul class="points">${b.items.map((x) => `<li>${esc(x.t)}${x.ask ? '<span class="ask">Уточнить в колледже</span>' : ""}</li>`).join("")}</ul>`).join("")}
+    ${contactRows.length ? group(contactRows, "Контакты", "Нажми на номер, чтобы позвонить. Добавочный называй после ответа на 97-42-06.") : ""}
+    ${it.sources.length ? group(it.sources.map((src) => row({ title: src.title, href: src.link, external: true, chevron: true })), "Источник",
+      hasAsk ? "Пункты с пометкой «Уточнить в колледже» на сайте прямо не написаны." : "") : ""}
+  `);
+}
+
 // ---------- Безопасность ----------
 
 function openGuide(g) {
@@ -514,111 +542,6 @@ let peopleGroup = "Все";
 
 const initials = (name) => { const [last, first] = name.split(" "); return first[0] + last[0]; };
 
-// ---------- Мои заметки о педагогах (хранятся только на этом телефоне) ----------
-
-const NOTES_KEY = "infoptk-notes";
-function loadNotes() {
-  try { return JSON.parse(localStorage.getItem(NOTES_KEY) || "{}") || {}; } catch { return {}; }
-}
-const notes = loadNotes();
-function saveNotes() {
-  try { localStorage.setItem(NOTES_KEY, JSON.stringify(notes)); return true; } catch { return false; }
-}
-const noteOf = (p) => notes[p.name] || null;
-const hasNote = (n) => n && (n.room || n.subject || n.contact || n.text || n.photo);
-
-// Уменьшаем фото до 320px, чтобы много заметок с фото поместилось в память телефона
-function shrinkPhoto(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = reject;
-      img.onload = () => {
-        const side = Math.min(img.width, img.height);
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 320;
-        canvas.getContext("2d").drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 320, 320);
-        resolve(canvas.toDataURL("image/jpeg", 0.8));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function openNoteEditor(p) {
-  const n = { ...(noteOf(p) || {}) };
-  openDetail(`
-    <h1 class="detail-title">Заметка</h1>
-    <p class="detail-text">${esc(p.name)}. Заметку видишь только ты, она хранится на этом телефоне.</p>
-    <div class="note-photo">
-      <img id="notePhotoImg" class="avatar big avatar-photo"${n.photo ? ` src="${n.photo}"` : " hidden"} alt="">
-      <label class="note-photo-btn">
-        <input type="file" id="notePhotoInput" accept="image/*" hidden>
-        <span id="notePhotoLabel">${n.photo ? "Заменить фото" : "Добавить фото"}</span>
-      </label>
-      <button class="note-photo-del" id="notePhotoDel"${n.photo ? "" : " hidden"}>Убрать фото</button>
-    </div>
-    <div class="form">
-      <label class="field"><span>Кабинет</span><input id="noteRoom" maxlength="20" value="${esc(n.room || "")}" placeholder="Например, 305"></label>
-      <label class="field"><span>Что ведёт</span><input id="noteSubject" maxlength="120" value="${esc(n.subject || "")}" placeholder="Например, математика"></label>
-      <label class="field"><span>Как связаться</span><input id="noteContact" maxlength="120" value="${esc(n.contact || "")}" placeholder="Телефон, почта, ВК или Telegram"></label>
-      <label class="field"><span>Заметка</span><textarea id="noteText" rows="4" maxlength="1000" placeholder="Когда консультации, что сдавать, что важно на парах">${esc(n.text || "")}</textarea></label>
-    </div>
-    <button class="primary" id="noteSave">Сохранить</button>
-    ${hasNote(noteOf(p)) ? '<button class="secondary danger" id="noteDelete">Удалить заметку</button>' : ""}
-  `);
-
-  const photoImg = $("#notePhotoImg");
-  $("#notePhotoInput").addEventListener("change", async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-      n.photo = await shrinkPhoto(file);
-      photoImg.src = n.photo;
-      photoImg.hidden = false;
-      $("#notePhotoLabel").textContent = "Заменить фото";
-      $("#notePhotoDel").hidden = false;
-    } catch {
-      showToast("Не получилось открыть фото. Попробуй другое.");
-    }
-  });
-  $("#notePhotoDel").addEventListener("click", () => {
-    delete n.photo;
-    photoImg.hidden = true;
-    photoImg.removeAttribute("src");
-    $("#notePhotoLabel").textContent = "Добавить фото";
-    $("#notePhotoDel").hidden = true;
-  });
-  $("#noteSave").addEventListener("click", () => {
-    n.room = $("#noteRoom").value.trim();
-    n.subject = $("#noteSubject").value.trim();
-    n.contact = $("#noteContact").value.trim();
-    n.text = $("#noteText").value.trim();
-    Object.keys(n).forEach((k) => { if (!n[k]) delete n[k]; });
-    const before = notes[p.name];
-    if (hasNote(n)) notes[p.name] = n; else delete notes[p.name];
-    if (!saveNotes()) {
-      if (before) notes[p.name] = before; else delete notes[p.name];
-      showToast("Не хватает памяти на телефоне. Убери фото или сократи заметку.");
-      return;
-    }
-    renderPeopleList();
-    showToast("Заметка сохранена");
-    openPerson(p);
-  });
-  const del = $("#noteDelete");
-  if (del) del.addEventListener("click", () => {
-    delete notes[p.name];
-    saveNotes();
-    renderPeopleList();
-    showToast("Заметка удалена");
-    openPerson(p);
-  });
-}
-
 // По справочнику колледжа: на 97-42-06 внутренний номер называют как добавочный, через вахту 97-42-15 — тоже
 const MAIN_LINE = "97-42-06";
 function phoneHint(p) {
@@ -629,39 +552,23 @@ function phoneHint(p) {
 
 function openPerson(p) {
   const c = DATA.contacts;
-  const n = noteOf(p);
-  const photo = p.photo || (n && n.photo);
-  const room = p.room || (n && n.room);
   const rows = [];
-  rows.push(room
-    ? row({ title: "Кабинет", subtitle: p.room ? "" : "Из твоей заметки", plate: room })
+  rows.push(p.room
+    ? row({ title: "Кабинет", plate: p.room })
     : row({ title: "Кабинет", subtitle: "Подскажут в учебной части", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
   if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? (p.phone === MAIN_LINE ? `Добавочный ${p.ext}` : `Прямой, внутренний ${p.ext}`) : "Городской", href: tel(p.phone) }));
   rows.push(row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }));
-
-  const noteRows = [];
-  if (n && n.subject) noteRows.push(`<div class="note-line"><span>Что ведёт</span><b>${esc(n.subject)}</b></div>`);
-  if (n && n.contact) noteRows.push(`<div class="note-line"><span>Как связаться</span><b>${esc(n.contact)}</b></div>`);
-  if (n && n.room && p.room && n.room !== p.room) noteRows.push(`<div class="note-line"><span>Кабинет</span><b>${esc(n.room)}</b></div>`);
-  if (n && n.text) noteRows.push(`<div class="note-line"><span>Заметка</span><p>${esc(n.text)}</p></div>`);
-
-  // Открываем карточку с нуля, если пришли из редактора, — чтобы «Назад» вёл к списку
-  const html = `
+  openDetail(`
     <div class="detail-hero">
-      ${photo
-        ? `<img class="avatar big avatar-photo" src="${photo}" alt="${esc(p.name)}">`
+      ${p.photo
+        ? `<img class="avatar big avatar-photo" src="${p.photo}" alt="${esc(p.name)}">`
         : `<span class="avatar big${p.group === "Руководство" ? " is-strong" : ""}">${esc(initials(p.name))}</span>`}
       <h1>${esc(p.name)}</h1>
       <p>${esc(p.role)}</p>
     </div>
     ${p.extra ? `<p class="person-extra">${esc(p.extra)}</p>` : ""}
     ${group(rows, "", phoneHint(p))}
-    <h2 class="group-caption">Мои заметки</h2>
-    ${noteRows.length ? `<div class="group note-box">${noteRows.join("")}</div>` : ""}
-    <button class="secondary" data-act="${act(() => openNoteEditor(p))}">${hasNote(n) ? "Изменить заметку" : "Добавить заметку"}</button>
-    <p class="group-footer">${hasNote(n) ? "Видишь только ты, хранится на этом телефоне." : "Запиши кабинет, что ведёт, как связаться, добавь фото. Видишь только ты."}</p>
-  `;
-  openDetail(html);
+  `);
 }
 
 function renderPeople() {
@@ -700,25 +607,17 @@ function renderPeople() {
 function renderPeopleList() {
   const norm = (s) => s.toLowerCase().replace(/ё/g, "е");
   const q = norm(peopleQuery.trim());
-  const match = (p) => {
-    if (!q) return true;
-    const n = noteOf(p) || {};
-    return [p.name, p.role, p.room || "", p.extra || "", n.room || "", n.subject || "", n.text || ""].some((f) => norm(f).includes(q));
-  };
+  const match = (p) => !q || [p.name, p.role, p.room || "", p.extra || ""].some((f) => norm(f).includes(q));
   const groups = (peopleGroup === "Все" ? DATA.staffGroups : [peopleGroup])
     .map((g) => [g, DATA.staff.filter((p) => p.group === g && match(p))])
     .filter(([, list]) => list.length);
 
   const box = $("#peopleList");
   box.innerHTML = groups.length
-    ? groups.map(([g, list]) => group(list.map((p) => {
-        const n = noteOf(p) || {};
-        return row({
-          avatarPhoto: p.photo || n.photo, avatar: initials(p.name), avatarStrong: p.group === "Руководство", title: p.name,
-          subtitle: n.subject ? `Ведёт: ${n.subject}` : p.role, plate: p.room || n.room, chevron: true,
-          onClick: () => openPerson(p),
-        });
-      }), g)).join("")
+    ? groups.map(([g, list]) => group(list.map((p) => row({
+        avatarPhoto: p.photo, avatar: initials(p.name), avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.role, plate: p.room, chevron: true,
+        onClick: () => openPerson(p),
+      })), g)).join("")
     : `<p class="empty">Никого не нашли. Проверь фамилию или выбери «Все».</p>`;
   bindActions(box);
 }
