@@ -9,6 +9,10 @@ const $ = (sel, root = document) => root.querySelector(sel);
 // Экранируем текст, чтобы символы вроде < и & не ломали разметку
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// Адрес для href/src: пропускаем только сайты, звонки, почту и свои файлы (img/...). Всё остальное
+// (например, javascript:) заменяем на "#", чтобы опечатка или чужая правка в data.js не стала дырой
+const url = (u) => esc(/^(https?:|tel:|mailto:|img\/)/i.test(String(u)) ? u : "#");
+
 const icons = {
   fire: '<path d="M12 21c-3.6 0-6-2.4-6-5.6 0-3.4 2.6-5 3.4-8.4 1.9 1.2 2.6 3 2.6 4.6 1-.7 1.6-2 1.7-3.2 2 1.6 4.3 4 4.3 7 0 3.2-2.4 5.6-6 5.6z"/>',
   alert: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.1"/>',
@@ -57,14 +61,14 @@ function band(title, sub = "") {
 function row(o) {
   const tag = o.href ? "a" : o.onClick ? "button" : "div";
   const attrs = [
-    o.href ? `href="${o.href}"` : "",
+    o.href ? `href="${url(o.href)}"` : "",
     o.external ? 'target="_blank" rel="noopener"' : "",
     o.onClick ? `data-act="${act(o.onClick)}"` : "",
   ].join(" ");
   const lead = o.photo
-    ? `<img class="thumb" src="${o.photo}" alt="" loading="lazy">`
+    ? `<img class="thumb" src="${url(o.photo)}" alt="" loading="lazy">`
     : o.icon ? `<span class="row-icon c-${o.color || "blue"}">${svg(o.icon)}</span>`
-    : o.avatarPhoto ? `<img class="avatar avatar-photo" src="${o.avatarPhoto}" alt="" loading="lazy">`
+    : o.avatarPhoto ? `<img class="avatar avatar-photo" src="${url(o.avatarPhoto)}" alt="" loading="lazy">`
     : o.avatar ? `<span class="avatar${o.avatarStrong ? " is-strong" : ""}">${esc(o.avatar)}</span>` : "";
   return `
     <${tag} class="row${o.onClick || o.href ? " is-tappable" : ""}${lead ? " has-lead" : ""}" ${attrs}>
@@ -156,7 +160,7 @@ function jumpTo(name, setup) {
 function returnFromJump() {
   const to = jumpFrom;
   jumpFrom = null;
-  showView(to, true);
+  showView(to);
   updateBack();
 }
 
@@ -199,7 +203,7 @@ function renderHome() {
       <p>Политехнический колледж НовГУ, всё для первокурсника в одном месте</p>
     </header>
 
-    <a class="schedule" href="${DATA.scheduleUrl}" target="_blank" rel="noopener">
+    <a class="schedule" href="${url(DATA.scheduleUrl)}" target="_blank" rel="noopener">
       <span class="schedule-text">
         <b>Расписание</b>
         <span>Пары и замены на сайте НовГУ</span>
@@ -406,14 +410,14 @@ function openChecklist() {
       <div class="group checklist">
         ${DATA.checklist.map((i) => `
           <div class="check-row">
-            <button class="check${checked.has(i.id) ? " is-on" : ""}" data-id="${i.id}" aria-pressed="${checked.has(i.id)}" aria-label="${esc(i.title)}">${svg("check")}</button>
+            <button class="check${checked.has(i.id) ? " is-on" : ""}" data-id="${esc(i.id)}" aria-pressed="${checked.has(i.id)}" aria-label="${esc(i.title)}">${svg("check")}</button>
             <span class="row-main">
               <span class="row-title">${esc(i.title)}</span>
               <span class="row-sub">${esc(i.note)}</span>
             </span>
             ${i.link === "schedule"
-              ? `<a class="check-go" href="${DATA.scheduleUrl}" target="_blank" rel="noopener" aria-label="Открыть расписание">${svg("chevron")}</a>`
-              : i.link ? `<button class="check-go" data-go="${i.link}" aria-label="Перейти">${svg("chevron")}</button>` : ""}
+              ? `<a class="check-go" href="${url(DATA.scheduleUrl)}" target="_blank" rel="noopener" aria-label="Открыть расписание">${svg("chevron")}</a>`
+              : i.link ? `<button class="check-go" data-go="${esc(i.link)}" aria-label="Перейти">${svg("chevron")}</button>` : ""}
           </div>`).join("")}
       </div>
       <p class="group-footer center">${done === total ? "Всё сделано, ты готов к учёбе." : `Сделано ${done} из ${total}`}</p>
@@ -616,7 +620,7 @@ function openPerson(p) {
   openDetail(`
     <div class="detail-hero">
       ${p.photo
-        ? `<img class="avatar big avatar-photo" src="${p.photo}" alt="${esc(p.name)}">`
+        ? `<img class="avatar big avatar-photo" src="${url(p.photo)}" alt="${esc(p.name)}">`
         : `<span class="avatar big${p.group === "Руководство" ? " is-strong" : ""}">${esc(initials(p.name))}</span>`}
       <h1>${esc(p.name)}</h1>
       <p>${esc(p.role)}</p>
@@ -685,7 +689,7 @@ function setNearbyKind(kind) {
   renderNearby();
 }
 
-function openPlace(p, kind) {
+function openPlace(p) {
   const facts = [
     row({ title: "Где", value: p.where }),
     ...(p.walk ? [row({ title: "Пешком от колледжа", value: p.walk })] : []),
@@ -698,7 +702,7 @@ function openPlace(p, kind) {
     ...(p.link2 ? [row({ title: p.link2Title, href: p.link2, external: true, chevron: true })] : []),
   ];
   openDetail(`
-    ${p.photo ? `<img class="hero-photo" src="${p.photo}" alt="${esc(p.name)}">` : ""}
+    ${p.photo ? `<img class="hero-photo" src="${url(p.photo)}" alt="${esc(p.name)}">` : ""}
     <h1 class="detail-title">${esc(p.name)}</h1>
     <p class="detail-text">${esc(p.note)}</p>
     ${group(facts)}
@@ -714,7 +718,7 @@ function renderNearby() {
   const sections = [...new Set(list.map(sectionOf))];
   const placeRow = (p) => row({
     photo: p.photo,
-    title: p.name, subtitle: p.price || p.where, value: p.walk, chevron: true, onClick: () => openPlace(p, nearbyKind),
+    title: p.name, subtitle: p.price || p.where, value: p.walk, chevron: true, onClick: () => openPlace(p),
   });
   view.innerHTML = `
     ${band("Рядом", "Где поесть и заняться спортом")}
