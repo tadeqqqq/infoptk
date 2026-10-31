@@ -1,7 +1,8 @@
 // Логика приложения: рисует экраны из data.js, переключает вкладки и открывает подробности.
 
-const tg = window.Telegram && window.Telegram.WebApp;
-const inTelegram = Boolean(tg && tg.initData);
+// Telegram подключаем при запуске (см. конец файла): если приложение открыто не из Telegram, его скрипт не нужен
+let tg = null;
+let inTelegram = false;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -61,7 +62,7 @@ function row(o) {
     o.onClick ? `data-act="${act(o.onClick)}"` : "",
   ].join(" ");
   const lead = o.photo
-    ? `<img class="thumb" src="${o.photo}" alt="">`
+    ? `<img class="thumb" src="${o.photo}" alt="" loading="lazy">`
     : o.icon ? `<span class="row-icon c-${o.color || "blue"}">${svg(o.icon)}</span>`
     : o.avatarPhoto ? `<img class="avatar avatar-photo" src="${o.avatarPhoto}" alt="" loading="lazy">`
     : o.avatar ? `<span class="avatar${o.avatarStrong ? " is-strong" : ""}">${esc(o.avatar)}</span>` : "";
@@ -87,8 +88,13 @@ function group(rows, caption = "", footer = "") {
 }
 
 function bindActions(root) {
+  // Обработчик забираем из общего списка и сразу удаляем оттуда — иначе после каждой перерисовки
+  // в памяти копились бы старые обработчики
   root.querySelectorAll("[data-act]").forEach((el) => {
-    el.addEventListener("click", (e) => actions[el.dataset.act](e, el));
+    const fn = actions[el.dataset.act];
+    if (!fn) return; // уже привязан раньше
+    delete actions[el.dataset.act];
+    el.addEventListener("click", (e) => fn(e, el));
   });
 }
 
@@ -164,7 +170,6 @@ function updateBack() {
 }
 $("#backBtn").addEventListener("click", goBack);
 $("#jumpBack").addEventListener("click", goBack);
-if (inTelegram) tg.BackButton.onClick(goBack);
 
 // ---------- Главная ----------
 
@@ -226,10 +231,45 @@ const toMin = (t) => { const [h, m] = t.split(":").map(Number); return h * 60 + 
 function moscowNow() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/Moscow", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(new Date());
   const get = (t) => parts.find((x) => x.type === t).value;
   const day = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
-  return { day, min: Number(get("hour")) * 60 + Number(get("minute")) };
+  // date — календарная дата по Москве (полночь UTC этого дня), чтобы считать праздники и следующий учебный день
+  const date = new Date(Date.UTC(Number(get("year")), Number(get("month")) - 1, Number(get("day"))));
+  return { day, min: Number(get("hour")) * 60 + Number(get("minute")), date };
+}
+
+// ---------- Праздники и каникулы ----------
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymd = (d) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+const md = (d) => `${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
+
+// Почему в этот день нет пар: "summer", "holiday", "weekend" или null — учебный день
+function dayOff(d) {
+  const c = DATA.calendar;
+  const m = md(d);
+  if (m >= c.summer.from && m <= c.summer.to) return "summer";
+  if (c.holidays.includes(m) || c.extraDaysOff.includes(ymd(d))) return "holiday";
+  if (!DATA.studyDays.includes(d.getUTCDay())) return "weekend";
+  return null;
+}
+
+const WEEKDAYS_IN = ["В воскресенье", "В понедельник", "Во вторник", "В среду", "В четверг", "В пятницу", "В субботу"];
+const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+
+// «Завтра», «В понедельник» или «В четверг, 8 января» — когда следующий учебный день
+function nextStudyDayLabel(today) {
+  for (let i = 1; i <= 75; i++) {
+    const d = addDays(today, i);
+    if (dayOff(d)) continue;
+    if (i === 1) return "Завтра";
+    if (i <= 6) return WEEKDAYS_IN[d.getUTCDay()];
+    return `${WEEKDAYS_IN[d.getUTCDay()]}, ${d.getUTCDate()} ${MONTHS_GEN[d.getUTCMonth()]},`;
+  }
+  return "В следующий учебный день";
 }
 
 const plural = (n, one, few, many) => {
@@ -243,16 +283,23 @@ const fmtLeft = (m) => {
 };
 
 // Что сейчас происходит: { title, sub, progress (0..1 или null) }
-function bellStatus({ day, min }) {
+function bellStatus({ min, date }) {
   const bells = DATA.bells;
   const first = toMin(bells[0].parts[0][0]);
   const last = toMin(bells[bells.length - 1].parts[1][1]);
   const lunch = DATA.lunch;
-  if (!DATA.studyDays.includes(day)) return { title: "Сегодня выходной", sub: "Пары в понедельник с 8:30", progress: null };
-  if (min < first) return { title: `До начала пар ${fmtLeft(first - min)}`, sub: `1 пара в ${bells[0].parts[0][0]}`, progress: null };
+  const firstAt = bells[0].parts[0][0];
+  const off = dayOff(date);
+  if (off === "summer") return { title: "Летние каникулы", sub: "Пары начнутся в сентябре", progress: null };
+  if (off) {
+    return {
+      title: off === "holiday" ? "Сегодня праздник, пар нет" : "Сегодня выходной",
+      sub: `${nextStudyDayLabel(date)} 1 пара в ${firstAt}`, progress: null,
+    };
+  }
+  if (min < first) return { title: `До начала пар ${fmtLeft(first - min)}`, sub: `1 пара в ${firstAt}`, progress: null };
   if (min >= last) {
-    const tomorrow = DATA.studyDays.includes((day + 1) % 7) ? "Завтра" : "В понедельник";
-    return { title: "Пары на сегодня закончились", sub: `${tomorrow} 1 пара в ${bells[0].parts[0][0]}`, progress: null };
+    return { title: "Пары на сегодня закончились", sub: `${nextStudyDayLabel(date)} 1 пара в ${firstAt}`, progress: null };
   }
   for (let i = 0; i < bells.length; i++) {
     const b = bells[i];
@@ -260,15 +307,17 @@ function bellStatus({ day, min }) {
     const [b1, b2] = b.parts[1].map(toMin);
     if (min >= a1 && min < b2) {
       const progress = (min - a1) / (b2 - a1);
-      if (min < a2) return { title: `Идёт ${b.n} пара`, sub: `До перемены ${fmtLeft(a2 - min)}`, progress };
-      if (min < b1) return { title: `${b.n} пара, перемена`, sub: `Продолжение через ${fmtLeft(b1 - min)}, в ${b.parts[1][0]}`, progress };
+      // 5 и 6 пары есть не у всех групп — так и пишем
+      const late = b.n >= 5 ? "Если она есть у твоей группы. " : "";
+      if (min < a2) return { title: `Идёт ${b.n} пара`, sub: `${late}До перемены ${fmtLeft(a2 - min)}`, progress };
+      if (min < b1) return { title: `${b.n} пара, перемена`, sub: `${late}Продолжение через ${fmtLeft(b1 - min)}, в ${b.parts[1][0]}`, progress };
       // Вторая половина 2 пары: первокурсников отпускают на обед раньше
       if (lunch.firstYear && b.parts[1][1] === lunch.start) {
         const fy = toMin(lunch.firstYear);
         if (min < fy) return { title: `Идёт ${b.n} пара`, sub: `Первокурсники идут на обед через ${fmtLeft(fy - min)}, остальные — в ${lunch.start}`, progress };
         return { title: "Первокурсники на обеде", sub: `У остальных пара до ${lunch.start}`, progress };
       }
-      return { title: `Идёт ${b.n} пара`, sub: `До конца пары ${fmtLeft(b2 - min)}`, progress };
+      return { title: `Идёт ${b.n} пара`, sub: `${late}До конца пары ${fmtLeft(b2 - min)}`, progress };
     }
     const next = bells[i + 1];
     if (next && min >= b2 && min < toMin(next.parts[0][0])) {
@@ -299,8 +348,8 @@ setInterval(updateNow, 30 * 1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) updateNow(); });
 
 function openBells() {
-  const { day, min } = moscowNow();
-  const today = DATA.studyDays.includes(day);
+  const { min, date } = moscowNow();
+  const today = !dayOff(date);
   const rows = DATA.bells.map((b) => {
     const isNow = today && min >= toMin(b.parts[0][0]) && min < toMin(b.parts[1][1]);
     return `
@@ -411,6 +460,7 @@ function openImportant(it) {
   openDetail(`
     <h1 class="detail-title">${esc(it.title)}</h1>
     <p class="detail-text">${esc(it.lead)}</p>
+    ${it.facts ? `<div class="facts">${it.facts.map(([big, small]) => `<div class="fact"><b>${esc(big)}</b><span>${esc(small)}</span></div>`).join("")}</div>` : ""}
     ${it.blocks.map((b) => `
       <h2 class="group-caption">${esc(b.title)}</h2>
       <ul class="points">${b.items.map((x) => `<li>${esc(x.t)}${x.ask ? '<span class="ask">Уточнить в колледже</span>' : ""}</li>`).join("")}</ul>`).join("")}
@@ -511,8 +561,7 @@ function renderRules() {
     ${group([
       row({ title: "Чек-лист первой недели", value: `${checkedCount()} из ${DATA.checklist.length}`, chevron: true, onClick: openChecklist }),
       row({ title: "Словарик первокурсника", subtitle: "Куратор, сессия, пересдача и другие слова", chevron: true, onClick: openGlossary }),
-      row({ title: "Звонки", subtitle: "Время пар и перемен", chevron: true, onClick: openBells }),
-    ], "Первая неделя")}
+    ], "Первая неделя", "Звонки — на главной, нажми на карточку с текущей парой.")}
 
     ${group(DATA.important.map((it) => row({ title: it.title, subtitle: it.sub, chevron: true, onClick: () => openImportant(it) })),
       "Важное", "Кому положено, какие документы нужны и куда идти.")}
@@ -568,7 +617,7 @@ function openPerson(p) {
 function renderPeople() {
   const view = $("#view-people");
   view.innerHTML = `
-    ${band("Педагоги", `${DATA.staff.length} человек, по данным портала НовГУ`)}
+    ${band("Педагоги", "Руководство, помощь студентам и преподаватели колледжа")}
     <div class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></svg>
       <input type="search" id="peopleSearch" placeholder="Фамилия или должность" aria-label="Поиск сотрудника" autocomplete="off">
@@ -767,16 +816,6 @@ document.querySelectorAll(".tabs [role=tab]").forEach((tab) => {
   });
 });
 
-if (inTelegram) {
-  tg.ready();
-  tg.expand();
-  tg.setHeaderColor("#002FA7");
-  tg.setBackgroundColor("#F2F4F8");
-  // Чтобы приложение не закрывалось, когда листаешь длинный список вниз
-  if (tg.isVersionAtLeast && tg.isVersionAtLeast("7.7") && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
-  document.body.classList.add("in-telegram");
-}
-
 // Telegram и браузер до 10 минут держат старую страницу в памяти. Проверяем, не вышла ли новая версия,
 // и если вышла — один раз перезагружаемся. Работает только на сайте (там у файлов есть ?v=номер версии).
 (function checkNewVersion() {
@@ -797,11 +836,56 @@ if (inTelegram) {
     .catch(() => { /* нет сети — работаем со старой версией */ });
 })();
 
-renderHome();
-renderSafety();
-renderRules();
-renderPeople();
-renderNearby();
+// ---------- Запуск ----------
 
-const start = location.hash.slice(1);
-if (VIEWS.includes(start)) showView(start);
+function initTelegram() {
+  tg = (window.Telegram && window.Telegram.WebApp) || null;
+  inTelegram = Boolean(tg && tg.initData);
+  if (!inTelegram) return;
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor("#002FA7");
+  tg.setBackgroundColor("#F2F4F8");
+  // Чтобы приложение не закрывалось, когда листаешь длинный список вниз
+  if (tg.isVersionAtLeast && tg.isVersionAtLeast("7.7") && tg.disableVerticalSwipes) tg.disableVerticalSwipes();
+  tg.BackButton.onClick(goBack);
+  document.body.classList.add("in-telegram");
+}
+
+// Открыто ли приложение из Telegram: он передаёт данные в адресе, а после перезагрузки — в sessionStorage
+function launchedFromTelegram() {
+  if (window.Telegram && window.Telegram.WebApp) return false; // скрипт уже есть
+  if (/tgWebApp/.test(location.hash)) return true;
+  try { return Boolean(sessionStorage.getItem("__telegram__initParams")); } catch { return false; }
+}
+
+// Скрипт Telegram грузим только в Telegram. Если telegram.org не ответит за 5 секунд, запускаемся без него
+function loadTelegramScript() {
+  return new Promise((resolve) => {
+    const s = document.createElement("script");
+    s.src = "https://telegram.org/js/telegram-web-app.js";
+    s.onload = resolve;
+    s.onerror = resolve;
+    setTimeout(resolve, 5000);
+    document.head.appendChild(s);
+  });
+}
+
+function boot() {
+  initTelegram();
+  renderHome();
+  renderSafety();
+  renderRules();
+  renderPeople();
+  renderNearby();
+  updateBack();
+  const startView = location.hash.slice(1);
+  if (VIEWS.includes(startView)) showView(startView);
+}
+
+(launchedFromTelegram() ? loadTelegramScript() : Promise.resolve()).then(boot);
+
+// Работа без интернета: только на настоящем сайте (https), не в файле и не на странице claude.ai
+if ("serviceWorker" in navigator && location.protocol === "https:" && /github\.io$/.test(location.hostname)) {
+  navigator.serviceWorker.register("sw.js").catch(() => { /* не получилось — работаем как обычно */ });
+}
