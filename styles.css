@@ -795,19 +795,21 @@ svg {
 
 /* ---------- Широкие экраны ---------- */
 
-/* В Telegram на компьютере окно бывает шире 560px — растягиваем на всю ширину, без полос по бокам */
+/* В Telegram и ВКонтакте на компьютере окно бывает шире 560px — растягиваем на всю ширину, без полос по бокам */
 .in-telegram .app,
-.in-telegram .tabs { max-width: none; }
+.in-telegram .tabs,
+.in-vk .app,
+.in-vk .tabs { max-width: none; }
 
 /* В браузере на компьютере — колонка как экран телефона, фон вокруг заметно отличается */
 @media (min-width: 600px) {
-  body:not(.in-telegram) { background: #E4E9F4; }
-  body:not(.in-telegram) .app {
+  body:not(.in-telegram):not(.in-vk) { background: #E4E9F4; }
+  body:not(.in-telegram):not(.in-vk) .app {
     min-height: 100vh;
     background: var(--page);
     box-shadow: 0 0 0 1px #D5DDF0;
   }
-  body:not(.in-telegram) .tabs { box-shadow: 0 0 0 1px #D5DDF0; }
+  body:not(.in-telegram):not(.in-vk) .tabs { box-shadow: 0 0 0 1px #D5DDF0; }
 }
 
 /* ---------- «Назад» после перехода в раздел по ссылке ---------- */

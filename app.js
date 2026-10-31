@@ -1,8 +1,9 @@
 // Логика приложения: рисует экраны из data.js, переключает вкладки и открывает подробности.
 
-// Telegram подключаем при запуске (см. конец файла): если приложение открыто не из Telegram, его скрипт не нужен
+// Telegram и ВКонтакте подключаем при запуске (см. конец файла): их скрипты нужны, только если приложение открыто там
 let tg = null;
 let inTelegram = false;
+let inVK = false;
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -847,7 +848,10 @@ document.querySelectorAll(".tabs [role=tab]").forEach((tab) => {
       try { tried = sessionStorage.getItem("infoptk-reloaded"); } catch { /* без памяти просто перезагрузим */ }
       if (tried === m[1]) return; // уже перезагружались на эту версию — не зацикливаемся
       try { sessionStorage.setItem("infoptk-reloaded", m[1]); } catch { /* ничего */ }
-      location.replace(location.pathname + "?v=" + m[1] + location.hash);
+      // Параметры адреса (например, vk_app_id от ВКонтакте) сохраняем, меняем только v
+      const params = new URLSearchParams(location.search);
+      params.set("v", m[1]);
+      location.replace(location.pathname + "?" + params + location.hash);
     })
     .catch(() => { /* нет сети — работаем со старой версией */ });
 })();
@@ -875,11 +879,25 @@ function launchedFromTelegram() {
   try { return Boolean(sessionStorage.getItem("__telegram__initParams")); } catch { return false; }
 }
 
-// Скрипт Telegram грузим только в Telegram. Если telegram.org не ответит за 5 секунд, запускаемся без него
-function loadTelegramScript() {
+// ВКонтакте открывает мини-приложение с параметрами в адресе: ?vk_app_id=...&vk_platform=...
+const launchedFromVK = () => /(^\?|&)vk_app_id=/.test(location.search);
+
+// Связь с ВКонтакте (VK Bridge, лежит у нас в vendor\). Без VKWebAppInit приложение в ВК висит на заставке
+function initVK() {
+  const bridge = window.vkBridge;
+  inVK = Boolean(bridge);
+  if (!inVK) return;
+  bridge.send("VKWebAppInit").catch(() => { /* не ответил — приложение всё равно показано */ });
+  // Синяя шапка и светлые значки в мобильном ВК; на компьютере метода нет — ошибку пропускаем
+  bridge.send("VKWebAppSetViewSettings", { status_bar_style: "light", action_bar_color: "#002FA7" }).catch(() => {});
+  document.body.classList.add("in-vk");
+}
+
+// Скрипт грузим, только если он нужен. Если сервер не ответит за 5 секунд, запускаемся без него
+function loadScript(src) {
   return new Promise((resolve) => {
     const s = document.createElement("script");
-    s.src = "https://telegram.org/js/telegram-web-app.js";
+    s.src = src;
     s.onload = resolve;
     s.onerror = resolve;
     setTimeout(resolve, 5000);
@@ -889,6 +907,7 @@ function loadTelegramScript() {
 
 function boot() {
   initTelegram();
+  initVK();
   renderHome();
   renderSafety();
   renderRules();
@@ -899,7 +918,10 @@ function boot() {
   if (VIEWS.includes(startView)) showView(startView);
 }
 
-(launchedFromTelegram() ? loadTelegramScript() : Promise.resolve()).then(boot);
+const platformScript = launchedFromTelegram() ? loadScript("https://telegram.org/js/telegram-web-app.js")
+  : launchedFromVK() ? loadScript("vendor/vk-bridge.min.js")
+  : Promise.resolve();
+platformScript.then(boot);
 
 // Работа без интернета: только на настоящем сайте (https), не в файле и не на странице claude.ai
 if ("serviceWorker" in navigator && location.protocol === "https:" && /github\.io$/.test(location.hostname)) {
