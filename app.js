@@ -890,6 +890,10 @@ function initVK() {
   bridge.send("VKWebAppInit").catch(() => { /* не ответил — приложение всё равно показано */ });
   // Синяя шапка и светлые значки в мобильном ВК; на компьютере метода нет — ошибку пропускаем
   bridge.send("VKWebAppSetViewSettings", { status_bar_style: "light", action_bar_color: "#002FA7" }).catch(() => {});
+  // На компьютере ВК даёт окно высотой около 450px — просим повыше, чтобы было похоже на экран телефона
+  if (/(^\?|&)vk_platform=desktop_web(&|$)/.test(location.search)) {
+    bridge.send("VKWebAppResizeWindow", { width: 795, height: 760 }).catch(() => {});
+  }
   document.body.classList.add("in-vk");
 }
 
