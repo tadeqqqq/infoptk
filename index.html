@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#002FA7">
+  <title>Инфо ПТК — твой гид по Политеху</title>
+  <link rel="icon" href="img/novsu-blue.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=202610311645">
+  <!-- Нужен, чтобы приложение работало внутри Telegram. В обычном браузере ничего не делает. -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <!-- Главные экраны (вкладки) -->
+    <main id="screens">
+      <section class="screen" id="view-home"></section>
+      <section class="screen" id="view-safety" hidden></section>
+      <section class="screen" id="view-rules" hidden></section>
+      <section class="screen" id="view-people" hidden></section>
+      <section class="screen" id="view-nearby" hidden></section>
+    </main>
+
+    <!-- Экран подробностей: открывается поверх вкладки -->
+    <section class="detail" id="detail" hidden>
+      <header class="detail-bar">
+        <button class="back" id="backBtn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          Назад
+        </button>
+      </header>
+      <div class="detail-body" id="detailBody"></div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="Разделы">
+      <button role="tab" data-view="home" aria-selected="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z"/></svg>
+        <span>Главная</span>
+      </button>
+      <button role="tab" data-view="safety" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6L12 3z"/></svg>
+        <span>Безопасность</span>
+      </button>
+      <button role="tab" data-view="rules" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l3.5 3.5v13.5H6z"/><path d="M9 11h6M9 14.5h6M9 18h3.5"/></svg>
+        <span>Правила</span>
+      </button>
+      <button role="tab" data-view="people" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c.8-3.9 3.9-6 7.5-6s6.7 2.1 7.5 6"/></svg>
+        <span>Педагоги</span>
+      </button>
+      <button role="tab" data-view="nearby" aria-selected="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0113 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
+        <span>Рядом</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="data.js?v=202610311645"></script>
+  <script src="app.js?v=202610311645"></script>
+</body>
+</html>
