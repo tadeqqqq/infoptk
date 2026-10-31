@@ -788,3 +788,5 @@ svg {
 /* Правило: номер в списке */
 .rule-pos { margin: 18px 4px 0; font-size: 14px; color: var(--hint); }
 .rule-pos + .detail-title { margin-top: 4px; }
+
+.bar.bar-tight { margin: 4px 4px 10px; }

@@ -183,8 +183,6 @@ const checked = loadSet(CHECK_KEY);
 
 function renderHome() {
   const c = DATA.contacts;
-  const total = DATA.rules.length;
-  const done = DATA.rules.filter((r) => readRules.has(r.id)).length;
   const view = $("#view-home");
   view.innerHTML = `
     <header class="band band-home">
@@ -208,27 +206,13 @@ function renderHome() {
       row({ title: "Учебная часть", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }),
       row({ title: "Что делать при пожаре", chevron: true, onClick: () => openGuide(DATA.safety[0]) }),
       row({ title: "Где поесть", chevron: true, onClick: () => jumpTo("nearby", () => setNearbyKind("food")) }),
-      row({
-        title: "Правила колледжа", chevron: true, onClick: () => jumpTo("rules"),
-        value: done === total ? "всё прочитано" : `прочитано ${done} из ${total}`,
-      }),
     ])}
-
-    ${group(DATA.important.map((it) => row({ title: it.title, subtitle: it.sub, chevron: true, onClick: () => openImportant(it) })),
-      "Важное", "Стипендии, льготы, общежитие и справки: кому положено, какие документы и куда идти.")}
 
     ${group([
       row({ title: c.address, subtitle: "Открыть на карте", href: mapUrl(`Великий Новгород, ${c.address}`), external: true }),
       row({ title: c.phone, subtitle: `Приёмная, с ${c.hours.replace("–", " до ")}`, href: tel(c.phone) }),
       row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }),
     ], "Колледж")}
-
-    <h2 class="group-caption">Первокурснику</h2>
-    ${group([
-      row({ title: "Звонки", subtitle: "Время пар и перемен", chevron: true, onClick: openBells }),
-      row({ title: "Чек-лист первой недели", value: `${checkedCount()} из ${DATA.checklist.length}`, chevron: true, onClick: openChecklist }),
-      row({ title: "Словарик первокурсника", subtitle: "Куратор, сессия, пересдача и другие слова", chevron: true, onClick: openGlossary }),
-    ])}
   `;
   bindActions(view);
   updateNow();
@@ -385,7 +369,7 @@ function openChecklist() {
       saveSet(CHECK_KEY, checked);
       if (inTelegram) tg.HapticFeedback.selectionChanged();
       render();
-      renderHome();
+      renderRules();
     }));
     // Нажатие на текст пункта тоже ставит отметку — так удобнее на телефоне
     $("#detailBody").querySelectorAll(".check-row .row-main").forEach((t) => t.addEventListener("click", () => t.parentElement.querySelector(".check").click()));
@@ -516,21 +500,31 @@ function openRule(r) {
   render();
 }
 
+// Вкладка «Студенту»: первая неделя, правила колледжа, важное (выплаты, общежитие, справки)
 function renderRules() {
   const view = $("#view-rules");
   const total = DATA.rules.length;
   const done = DATA.rules.filter((r) => readRules.has(r.id)).length;
   view.innerHTML = `
-    ${band("Правила", `Прочитано ${done} из ${total}`)}
-    <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}">${DATA.rules.map((r) => `<i${readRules.has(r.id) ? ' class="on"' : ""}></i>`).join("")}</div>
-    ${group(DATA.rules.map((r) => {
-      return row({
-        title: r.title, chevron: true, onClick: () => openRule(r),
-        accessory: readRules.has(r.id) ? `<span class="row-check" aria-label="Прочитано">${svg("check")}</span>` : "",
-      });
-    }), "Правила колледжа")}
-    ${group([row({ title: "Полный текст правил", subtitle: DATA.rulesDoc.title, href: DATA.rulesDoc.link, external: true, chevron: true })], "Документ",
-      "Правила составлены по официальному документу НовГУ. Пункты с пометкой «Уточнить в колледже» в нём не прописаны, их стоит проверить у куратора.")}
+    ${band("Студенту", "Первая неделя, правила и всё о выплатах и документах")}
+
+    ${group([
+      row({ title: "Чек-лист первой недели", value: `${checkedCount()} из ${DATA.checklist.length}`, chevron: true, onClick: openChecklist }),
+      row({ title: "Словарик первокурсника", subtitle: "Куратор, сессия, пересдача и другие слова", chevron: true, onClick: openGlossary }),
+      row({ title: "Звонки", subtitle: "Время пар и перемен", chevron: true, onClick: openBells }),
+    ], "Первая неделя")}
+
+    ${group(DATA.important.map((it) => row({ title: it.title, subtitle: it.sub, chevron: true, onClick: () => openImportant(it) })),
+      "Важное", "Кому положено, какие документы нужны и куда идти.")}
+
+    <h2 class="group-caption">Правила колледжа: прочитано ${done} из ${total}</h2>
+    <div class="bar bar-tight" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${done}">${DATA.rules.map((r) => `<i${readRules.has(r.id) ? ' class="on"' : ""}></i>`).join("")}</div>
+    ${group(DATA.rules.map((r) => row({
+      title: r.title, chevron: true, onClick: () => openRule(r),
+      accessory: readRules.has(r.id) ? `<span class="row-check" aria-label="Прочитано">${svg("check")}</span>` : "",
+    })).concat([row({ title: "Полный текст правил", subtitle: DATA.rulesDoc.title, href: DATA.rulesDoc.link, external: true, chevron: true })]), "",
+      "Правила составлены по официальному документу НовГУ. Пункты с пометкой «Уточнить в колледже» стоит проверить у куратора.")}
+
   `;
   bindActions(view);
 }
