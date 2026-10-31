@@ -783,6 +783,26 @@ if (inTelegram) {
   document.body.classList.add("in-telegram");
 }
 
+// Telegram и браузер до 10 минут держат старую страницу в памяти. Проверяем, не вышла ли новая версия,
+// и если вышла — один раз перезагружаемся. Работает только на сайте (там у файлов есть ?v=номер версии).
+(function checkNewVersion() {
+  const own = document.querySelector('script[src*="app.js?v="]');
+  if (!own || !window.fetch) return;
+  const current = own.getAttribute("src").split("?v=")[1];
+  fetch(location.pathname + "?check=" + Date.now(), { cache: "no-store" })
+    .then((r) => (r.ok ? r.text() : ""))
+    .then((html) => {
+      const m = html.match(/app\.js\?v=(\d+)/);
+      if (!m || m[1] === current) return;
+      let tried = "";
+      try { tried = sessionStorage.getItem("infoptk-reloaded"); } catch { /* без памяти просто перезагрузим */ }
+      if (tried === m[1]) return; // уже перезагружались на эту версию — не зацикливаемся
+      try { sessionStorage.setItem("infoptk-reloaded", m[1]); } catch { /* ничего */ }
+      location.replace(location.pathname + "?v=" + m[1] + location.hash);
+    })
+    .catch(() => { /* нет сети — работаем со старой версией */ });
+})();
+
 renderHome();
 renderSafety();
 renderRules();
