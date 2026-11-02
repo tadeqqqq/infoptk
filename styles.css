@@ -578,6 +578,19 @@ svg {
 
 /* ---------- Нашёл ошибку ---------- */
 
+.report-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 22px auto 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.report-link svg { width: 14px; height: 14px; stroke-width: 2; }
+
 .report-where { margin: 14px 4px 0; font-size: 14px; color: var(--hint); }
 
 .field {

@@ -465,11 +465,9 @@ function openGlossary() {
 // Сообщение уходит боту (Cloudflare Worker), бот пересылает его команде в Telegram
 const REPORT_URL = "https://infoptk-bot.infoptk.workers.dev/report";
 
+// Маленькая ссылка внизу экрана, чтобы не отвлекать от главного
 function reportGroup(where) {
-  return group([row({
-    icon: "flag", color: "gray", title: "Нашёл ошибку", subtitle: "Напиши, что не так, — команда исправит",
-    chevron: true, onClick: () => openReport(where),
-  })]);
+  return `<button class="report-link" data-act="${act(() => openReport(where))}">${svg("flag")}Нашёл ошибку?</button>`;
 }
 
 function openReport(where) {
