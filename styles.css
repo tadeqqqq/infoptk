@@ -146,7 +146,8 @@ svg {
   opacity: 0.16;
 }
 
-.band-home h1 { position: relative; font-size: 40px; line-height: 1; }
+.band-home h1 { position: relative; font-size: 40px; line-height: 1; display: flex; align-items: center; gap: 10px; }
+.app-mark { width: 40px; height: 40px; border-radius: 10px; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35); }
 
 .band-home p { position: relative; margin-top: 8px; max-width: 30ch; }
 
@@ -270,6 +271,9 @@ svg {
 .avatar-photo { object-fit: cover; object-position: 50% 25%; background: var(--brand-tint); }
 
 .avatar.is-strong { background: var(--brand); color: #FFFFFF; }
+
+.avatar-drawn { overflow: hidden; }
+.avatar-drawn svg { display: block; width: 100%; height: 100%; stroke: none; }
 
 /* Номер кабинета — как табличка на двери */
 .plate {
@@ -760,7 +764,7 @@ svg {
 
 .term p { padding: 0 16px 14px; color: var(--text); line-height: 1.5; }
 
-.avatar.big.avatar-photo { width: 104px; height: 104px; }
+.avatar.big.avatar-photo, .avatar.big.avatar-drawn { width: 104px; height: 104px; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

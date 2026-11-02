@@ -70,7 +70,7 @@ function row(o) {
     ? `<img class="thumb" src="${url(o.photo)}" alt="" loading="lazy">`
     : o.icon ? `<span class="row-icon c-${o.color || "blue"}">${svg(o.icon)}</span>`
     : o.avatarPhoto ? `<img class="avatar avatar-photo" src="${url(o.avatarPhoto)}" alt="" loading="lazy">`
-    : o.avatar ? `<span class="avatar${o.avatarStrong ? " is-strong" : ""}">${esc(o.avatar)}</span>` : "";
+    : o.avatar ? drawnAvatar(o.avatar, o.avatarStrong) : "";
   return `
     <${tag} class="row${o.onClick || o.href ? " is-tappable" : ""}${lead ? " has-lead" : ""}" ${attrs}>
       ${lead}
@@ -200,7 +200,7 @@ function renderHome() {
     <header class="band band-home">
       <img class="logo" src="img/novsu-white.svg" alt="НовГУ имени Ярослава Мудрого">
       <img class="emblem" src="img/novsu-emblem-white.svg" alt="">
-      <h1>Инфо ПТК</h1>
+      <h1><img class="app-mark" src="img/logo.svg" alt="">Инфо ПТК</h1>
       <p>Политехнический колледж НовГУ, всё для первокурсника в одном месте</p>
     </header>
 
@@ -227,6 +227,7 @@ function renderHome() {
     ${group([
       row({ title: c.address, subtitle: "Открыть на карте", href: mapUrl(`Великий Новгород, ${c.address}`), external: true }),
       row({ title: c.phone, subtitle: `Приёмная, с ${c.hours.replace("–", " до ")}`, href: tel(c.phone) }),
+      row({ title: c.phone2, subtitle: "Телефон и факс", href: tel(c.phone2) }),
       row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }),
     ], "Колледж")}
   `;
@@ -602,6 +603,43 @@ let peopleGroup = "Все";
 
 const initials = (name) => { const [last, first] = name.split(" "); return first[0] + last[0]; };
 
+// Рисованная аватарка для тех, у кого нет фото. Одна и та же для человека: вариант выбирается по ФИО.
+// Женщина или мужчина — по отчеству (-вна, -чна).
+const AV = {
+  skin: ["#F2D3B8", "#EBC5A4", "#DDAE8A"],
+  hair: ["#3A2A21", "#5E4130", "#8A6440", "#26262B", "#9A9AA2", "#A5532F"],
+  shirt: ["#002FA7", "#4A6FD1", "#5E6678", "#2F7A5B"],
+  male: [
+    "M21 26C20 15 26 11 32 11C39 11 44 15 43 26C41 20 37 18 32 18C27 18 23 20 21 26Z",
+    "M21 27C19 14 27 10 34 11C41 12 45 18 43 27C42 22 40 19 36 18C31 21 25 21 21 27Z",
+    "M21 24C21 17 25 13 32 13C39 13 43 17 43 24C42 21 40 20 38 20H26C24 20 22 21 21 24Z",
+  ],
+  beard: "M21 28C22 39 27 42 32 42C37 42 42 39 43 28C41 34 37 35 32 35C27 35 23 34 21 28Z",
+  femaleBack: [
+    "M18 30C17 14 25 9 32 9C39 9 47 14 46 30L47 47C42 49 22 49 17 47Z",
+    "M19 32C17 15 25 10 32 10C39 10 47 15 45 32C44 36 41 37 40 36H24C22 37 20 36 19 32Z",
+    "M32 3A6 6 0 1 1 31.99 3Z",
+  ],
+  fringe: "M21 26C21 16 27 12 33 12C39 12 43 16 43 26C38 22 31 20 27 17C25 21 23 24 21 26Z",
+};
+function drawnAvatar(name, strong, big) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  const pick = (arr, k) => arr[Math.floor(h / k) % arr.length];
+  const female = /(вна|чна)$/.test(name.trim().split(" ").pop() || "");
+  const skin = pick(AV.skin, 1), hair = pick(AV.hair, 3), shirt = pick(AV.shirt, 7);
+  const back = female ? `<path d="${pick(AV.femaleBack, 11)}" fill="${hair}"/>` : "";
+  const front = female ? `<path d="${AV.fringe}" fill="${hair}"/>`
+    : `<path d="${pick(AV.male, 11)}" fill="${hair}"/>${h % 5 === 0 ? `<path d="${AV.beard}" fill="${hair}"/>` : ""}`;
+  return `<span class="avatar avatar-drawn${strong ? " is-strong" : ""}${big ? " big" : ""}" aria-hidden="true"><svg viewBox="0 0 64 64">
+    ${back}
+    <path d="M10 66C10 49 20 43 32 43C44 43 54 49 54 66Z" fill="${strong ? "#FFFFFF" : shirt}"/>
+    <path d="M27 36H37V45C35 47 29 47 27 45Z" fill="${skin}" opacity=".85"/>
+    <ellipse cx="32" cy="28" rx="11" ry="12.5" fill="${skin}"/>
+    ${front}
+  </svg></span>`;
+}
+
 // По справочнику колледжа: на 97-42-06 внутренний номер называют как добавочный, через вахту 97-42-15 — тоже
 const MAIN_LINE = "97-42-06";
 function phoneHint(p) {
@@ -615,14 +653,15 @@ function openPerson(p) {
   const rows = [];
   rows.push(p.room
     ? row({ title: "Кабинет", plate: p.room })
-    : row({ title: "Кабинет", subtitle: "Подскажут в учебной части", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
+    : row({ title: "Кабинет", subtitle: "Можно уточнить в учебной части в 207 кабинете", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
   if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? (p.phone === MAIN_LINE ? `Добавочный ${p.ext}` : `Прямой, внутренний ${p.ext}`) : "Городской", href: tel(p.phone) }));
+  if (p.email) rows.push(row({ title: p.email, subtitle: "Почта", href: `mailto:${p.email}` }));
   rows.push(row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }));
   openDetail(`
     <div class="detail-hero">
       ${p.photo
         ? `<img class="avatar big avatar-photo" src="${url(p.photo)}" alt="${esc(p.name)}">`
-        : `<span class="avatar big${p.group === "Руководство" ? " is-strong" : ""}">${esc(initials(p.name))}</span>`}
+        : drawnAvatar(p.name, p.group === "Руководство", true)}
       <h1>${esc(p.name)}</h1>
       <p>${esc(p.role)}</p>
     </div>
@@ -675,7 +714,7 @@ function renderPeopleList() {
   const box = $("#peopleList");
   box.innerHTML = groups.length
     ? groups.map(([g, list]) => group(list.map((p) => row({
-        avatarPhoto: p.photo, avatar: initials(p.name), avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.role, plate: p.room, chevron: true,
+        avatarPhoto: p.photo, avatar: p.name, avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.role, plate: p.room, chevron: true,
         onClick: () => openPerson(p),
       })), g)).join("")
     : `<p class="empty">Никого не нашли. Проверь фамилию или выбери «Все».</p>`;
@@ -782,30 +821,33 @@ function prettyPhone(href) {
   return "+" + d;
 }
 
+// Позвонить по ссылке tel: можно только с телефона. На компьютере браузер показывает ошибку
+// «не найдено приложение» — там номер копируем, как в Telegram.
+const canDial = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 document.addEventListener("click", (e) => {
-  if (!inTelegram) return;
   // В Telegram ссылки на сайты открываем через его метод, иначе они не откроются
-  const ext = e.target.closest('a[target="_blank"]');
+  const ext = inTelegram && e.target.closest('a[target="_blank"]');
   if (ext) {
     e.preventDefault();
     tg.openLink(ext.href);
     return;
   }
-  // Звонок и почта внутри Telegram не открываются — копируем и подсказываем
+  // Звонок и почта внутри Telegram не открываются, звонок с компьютера — тоже: копируем и подсказываем
   const call = e.target.closest('a[href^="tel:"], a[href^="mailto:"]');
-  if (call) {
+  if (call && (inTelegram || (!canDial && call.getAttribute("href").startsWith("tel:")))) {
     e.preventDefault();
     const href = call.getAttribute("href");
     if (href.startsWith("tel:")) {
       const num = prettyPhone(href);
       copyText(num);
-      showToast(num.length <= 3 ? `Набери ${num} в телефоне. Номер скопирован` : `Номер ${num} скопирован. Вставь его в «Телефон»`);
+      showToast(num.length <= 3 ? `Набери ${num} в телефоне. Номер скопирован` : `Номер ${num} скопирован. ${canDial ? "Вставь его в «Телефон»" : "Позвони с телефона"}`);
     } else {
       const mail = href.slice(7);
       copyText(mail);
       showToast(`Почта ${mail} скопирована`);
     }
-    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    if (inTelegram && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
   }
 });
 
