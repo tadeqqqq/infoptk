@@ -286,6 +286,9 @@ svg {
   font-variant-numeric: tabular-nums;
 }
 
+/* Аудитория по расписанию, а не кабинет из справочника: «~303», рамка пунктиром */
+.plate.is-approx { border-style: dashed; font-weight: 400; }
+
 .thumb {
   width: 32px;
   height: 32px;

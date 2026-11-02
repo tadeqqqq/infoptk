@@ -80,6 +80,7 @@ function row(o) {
       </span>
       ${o.value ? `<span class="row-value">${esc(o.value)}</span>` : ""}
       ${o.plate ? `<span class="plate" aria-label="Кабинет ${esc(o.plate)}">${esc(o.plate)}</span>` : ""}
+      ${!o.plate && o.approxPlate ? `<span class="plate is-approx" aria-label="Чаще всего в аудитории ${esc(o.approxPlate)}">~${esc(o.approxPlate)}</span>` : ""}
       ${o.accessory || ""}
       ${o.chevron ? `<span class="row-chevron">${svg("chevron")}</span>` : ""}
     </${tag}>`;
@@ -666,6 +667,8 @@ function placeName(r) {
   return /^\d{4}/.test(r) ? `ауд. ${r} (корпус НовГУ)` : `ауд. ${r}`;
 }
 
+const mainRoom = (t) => (t && t.rooms.length && /^\d{3}\D?$/.test(t.rooms[0][0]) ? t.rooms[0][0] : "");
+
 // Где чаще всего бывает педагог — по аудиториям его пар в расписании групп
 function whereText(t) {
   const rooms = t.rooms.filter(([r]) => r !== "корпус НовГУ" || t.rooms.length === 1);
@@ -685,7 +688,7 @@ function openPerson(p) {
   const rows = [];
   const where = t ? whereText(t) : "";
   if (p.room) rows.push(row({ title: "Кабинет", plate: p.room }));
-  if (where) rows.push(row({ title: "Где найти", subtitle: where, plate: where.startsWith("Чаще") && /^\d{3}\D?$/.test(t.rooms[0][0]) ? t.rooms[0][0] : "" }));
+  if (where) rows.push(row({ title: "Где найти", subtitle: where, approxPlate: mainRoom(t) }));
   if (!p.room) rows.push(row({ title: where ? "Где сидит между парами" : "Кабинет", subtitle: "Можно уточнить в учебной части в 207 кабинете", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
   if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? (p.phone === MAIN_LINE ? `Добавочный ${p.ext}` : `Прямой, внутренний ${p.ext}`) : "Городской", href: tel(p.phone) }));
   if (p.email) rows.push(row({ title: p.email, subtitle: "Почта", href: `mailto:${p.email}` }));
@@ -700,7 +703,7 @@ function openPerson(p) {
     </div>
     ${p.extra ? `<p class="person-extra">${esc(p.extra)}</p>` : ""}
     ${t && t.subjects.length ? group(t.subjects.map((s) => row({ title: s })), "Ведёт") : ""}
-    ${group(rows, "", [phoneHint(p), where ? "Где найти — по расписаниям групп на портале НовГУ, текущий семестр." : ""].filter(Boolean).join(" "))}
+    ${group(rows, "", [phoneHint(p), where ? "Где найти — по расписаниям групп на портале НовГУ, текущий семестр. Номер с ~ — аудитория, где чаще всего его пары, а не кабинет." : ""].filter(Boolean).join(" "))}
   `);
 }
 
@@ -749,7 +752,7 @@ function renderPeopleList() {
   const box = $("#peopleList");
   box.innerHTML = groups.length
     ? groups.map(([g, list]) => group(list.map((p) => row({
-        avatarPhoto: p.photo, avatar: p.name, avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.group === "Преподаватели" && subjects(p).length ? subjects(p)[0] : p.role, plate: p.room, chevron: true,
+        avatarPhoto: p.photo, avatar: p.name, avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.group === "Преподаватели" && subjects(p).length ? subjects(p)[0] : p.role, plate: p.room, approxPlate: mainRoom(DATA.teaching[p.name]), chevron: true,
         onClick: () => openPerson(p),
       })), g)).join("")
     : `<p class="empty">Никого не нашли. Проверь фамилию или выбери «Все».</p>`;
