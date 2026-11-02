@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#002FA7">
+  <!-- Страница для QR-кода «Связь с командой»: одна ссылка — два способа написать. Без скриптов. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>Связь с командой Инфо ПТК</title>
+  <link rel="icon" href="img/logo.svg">
+  <style>
+    @font-face { font-family: "PT Sans"; src: url(fonts/ptsans-400-cyrillic.woff2) format("woff2"); font-weight: 400; }
+    @font-face { font-family: "PT Sans"; src: url(fonts/ptsans-700-cyrillic.woff2) format("woff2"); font-weight: 700; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #F2F4F8; color: #121826; font-family: "PT Sans", system-ui, sans-serif;
+    }
+    main { width: 100%; max-width: 420px; padding: 32px 20px; text-align: center; }
+    .logo { width: 88px; height: 88px; }
+    h1 { margin: 18px 0 4px; font-size: 30px; }
+    p { margin: 0; color: #6B7385; font-size: 17px; line-height: 1.4; }
+    .links { display: grid; gap: 12px; margin-top: 28px; }
+    a.btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px; height: 56px;
+      border-radius: 14px; font-size: 18px; font-weight: 700; text-decoration: none; color: #FFFFFF;
+    }
+    .tg { background: #2AABEE; }
+    .vk { background: #0077FF; }
+    .app { background: #FFFFFF; color: #002FA7 !important; border: 1.5px solid #C9D5F2; }
+    .who { margin-top: 24px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <main>
+    <img class="logo" src="img/logo.svg" alt="Инфо ПТК">
+    <h1>Команда Субо</h1>
+    <p>Делаем «Инфо ПТК» — твой гид по колледжу. Есть вопрос или идея? Напиши нам.</p>
+    <div class="links">
+      <a class="btn tg" href="https://t.me/tademmmm">Написать в Telegram</a>
+      <a class="btn vk" href="https://vk.ru/mateualex">Написать во ВКонтакте</a>
+      <a class="btn app" href="./">Открыть Инфо ПТК</a>
+    </div>
+    <p class="who">Матвей Алексеев, лидер команды</p>
+  </main>
+</body>
+</html>
