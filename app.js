@@ -598,6 +598,15 @@ function renderRules() {
 
 // ---------- Педагоги и контакты ----------
 
+// Педагоги из расписаний групп, которых нет в списке сотрудников портала: известны только фамилия и инициалы
+(function addScheduleTeachers() {
+  const known = new Set(DATA.staff.map((p) => p.name));
+  Object.keys(DATA.teaching || {}).forEach((name) => {
+    if (!known.has(name)) DATA.staff.push({ name, role: "Преподаватель", group: "Преподаватели", fromSchedule: true });
+  });
+  DATA.staff.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+})();
+
 let peopleQuery = "";
 let peopleGroup = "Все";
 
@@ -626,7 +635,10 @@ function drawnAvatar(name, strong, big) {
   let h = 0;
   for (const ch of name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
   const pick = (arr, k) => arr[Math.floor(h / k) % arr.length];
-  const female = /(вна|чна)$/.test(name.trim().split(" ").pop() || "");
+  const parts = name.trim().split(" ");
+  const female = parts.length === 3 && !parts[2].endsWith(".")
+    ? /(вна|чна)$/.test(parts[2])
+    : /(ова|ева|ёва|ина|ына|ая)$/.test(parts[0]);
   const skin = pick(AV.skin, 1), hair = pick(AV.hair, 3), shirt = pick(AV.shirt, 7);
   const back = female ? `<path d="${pick(AV.femaleBack, 11)}" fill="${hair}"/>` : "";
   const front = female ? `<path d="${AV.fringe}" fill="${hair}"/>`
@@ -648,12 +660,33 @@ function phoneHint(p) {
   return `Если не дозвонишься, набери ${MAIN_LINE} и назови добавочный ${p.ext}.`;
 }
 
+// Как называть место из расписания: «ауд. 420», «спортзал», «ауд. 4301 (корпус НовГУ)»
+function placeName(r) {
+  if (!/^\d/.test(r)) return r;
+  return /^\d{4}/.test(r) ? `ауд. ${r} (корпус НовГУ)` : `ауд. ${r}`;
+}
+
+// Где чаще всего бывает педагог — по аудиториям его пар в расписании групп
+function whereText(t) {
+  const rooms = t.rooms.filter(([r]) => r !== "корпус НовГУ" || t.rooms.length === 1);
+  if (!rooms.length) return "";
+  const total = rooms.reduce((sum, [, n]) => sum + n, 0);
+  const [top, ...rest] = rooms;
+  if (top[1] / total >= 0.6) {
+    return `Чаще всего: ${placeName(top[0])}` + (rest.length ? `. Иногда: ${rest.slice(0, 2).map(([r]) => placeName(r)).join(", ")}` : "");
+  }
+  const list = rooms.slice(0, 3).map(([r]) => placeName(r));
+  return `Можно встретить: ${list.slice(0, -1).join(", ")} или ${list[list.length - 1]}`;
+}
+
 function openPerson(p) {
   const c = DATA.contacts;
+  const t = DATA.teaching[p.name];
   const rows = [];
-  rows.push(p.room
-    ? row({ title: "Кабинет", plate: p.room })
-    : row({ title: "Кабинет", subtitle: "Можно уточнить в учебной части в 207 кабинете", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
+  const where = t ? whereText(t) : "";
+  if (p.room) rows.push(row({ title: "Кабинет", plate: p.room }));
+  if (where) rows.push(row({ title: "Где найти", subtitle: where, plate: where.startsWith("Чаще") && /^\d{3}\D?$/.test(t.rooms[0][0]) ? t.rooms[0][0] : "" }));
+  if (!p.room) rows.push(row({ title: where ? "Где сидит между парами" : "Кабинет", subtitle: "Можно уточнить в учебной части в 207 кабинете", value: STUDY_OFFICE, href: tel(STUDY_OFFICE) }));
   if (p.phone) rows.push(row({ title: p.phone, subtitle: p.ext ? (p.phone === MAIN_LINE ? `Добавочный ${p.ext}` : `Прямой, внутренний ${p.ext}`) : "Городской", href: tel(p.phone) }));
   if (p.email) rows.push(row({ title: p.email, subtitle: "Почта", href: `mailto:${p.email}` }));
   rows.push(row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }));
@@ -666,7 +699,8 @@ function openPerson(p) {
       <p>${esc(p.role)}</p>
     </div>
     ${p.extra ? `<p class="person-extra">${esc(p.extra)}</p>` : ""}
-    ${group(rows, "", phoneHint(p))}
+    ${t && t.subjects.length ? group(t.subjects.map((s) => row({ title: s })), "Ведёт") : ""}
+    ${group(rows, "", [phoneHint(p), where ? "Где найти — по расписаниям групп на портале НовГУ, текущий семестр." : ""].filter(Boolean).join(" "))}
   `);
 }
 
@@ -676,7 +710,7 @@ function renderPeople() {
     ${band("Педагоги", "Руководство, помощь студентам и преподаватели колледжа")}
     <div class="search">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/></svg>
-      <input type="search" id="peopleSearch" placeholder="Фамилия или должность" aria-label="Поиск сотрудника" autocomplete="off">
+      <input type="search" id="peopleSearch" placeholder="Фамилия, должность или предмет" aria-label="Поиск сотрудника" autocomplete="off">
     </div>
     <div class="segments" role="group" aria-label="Кто нужен">
       ${["Все", ...DATA.staffGroups].map((g) => `
@@ -706,7 +740,8 @@ function renderPeople() {
 function renderPeopleList() {
   const norm = (s) => s.toLowerCase().replace(/ё/g, "е");
   const q = norm(peopleQuery.trim());
-  const match = (p) => !q || [p.name, p.role, p.room || "", p.extra || ""].some((f) => norm(f).includes(q));
+  const subjects = (p) => (DATA.teaching[p.name] ? DATA.teaching[p.name].subjects : []);
+  const match = (p) => !q || [p.name, p.role, p.room || "", p.extra || "", ...subjects(p)].some((f) => norm(f).includes(q));
   const groups = (peopleGroup === "Все" ? DATA.staffGroups : [peopleGroup])
     .map((g) => [g, DATA.staff.filter((p) => p.group === g && match(p))])
     .filter(([, list]) => list.length);
@@ -714,7 +749,7 @@ function renderPeopleList() {
   const box = $("#peopleList");
   box.innerHTML = groups.length
     ? groups.map(([g, list]) => group(list.map((p) => row({
-        avatarPhoto: p.photo, avatar: p.name, avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.role, plate: p.room, chevron: true,
+        avatarPhoto: p.photo, avatar: p.name, avatarStrong: p.group === "Руководство", title: p.name, subtitle: p.group === "Преподаватели" && subjects(p).length ? subjects(p)[0] : p.role, plate: p.room, chevron: true,
         onClick: () => openPerson(p),
       })), g)).join("")
     : `<p class="empty">Никого не нашли. Проверь фамилию или выбери «Все».</p>`;
