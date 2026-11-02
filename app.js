@@ -668,7 +668,6 @@ function renderRules() {
 let peopleQuery = "";
 let peopleGroup = "Все";
 
-const initials = (name) => { const [last, first] = name.split(" "); return first[0] + last[0]; };
 
 // Рисованная аватарка для тех, у кого нет фото. Одна и та же для человека: вариант выбирается по ФИО.
 // Женщина или мужчина — по отчеству (-вна, -чна).
