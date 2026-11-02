@@ -34,7 +34,6 @@ const icons = {
   chevron: '<path d="M9 5l7 7-7 7"/>',
   check: '<path d="M5.5 12.5l4 4 9-9"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5.5H4.5V6H10"/>',
-  flag: '<path d="M6 21V4M6 4.5h11l-2.2 4 2.2 4H6"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
 
@@ -233,7 +232,6 @@ function renderHome() {
       row({ title: c.email, subtitle: "Почта колледжа", href: `mailto:${c.email}` }),
     ], "Колледж")}
 
-    ${reportGroup("Главная")}
   `;
   bindActions(view);
   updateNow();
@@ -460,56 +458,6 @@ function openGlossary() {
   `);
 }
 
-// ---------- Нашёл ошибку ----------
-
-// Сообщение уходит боту (Cloudflare Worker), бот пересылает его команде в Telegram
-const REPORT_URL = "https://infoptk-bot.infoptk.workers.dev/report";
-
-// Маленькая ссылка внизу экрана, чтобы не отвлекать от главного
-function reportGroup(where) {
-  return `<button class="report-link" data-act="${act(() => openReport(where))}">${svg("flag")}Нашёл ошибку?</button>`;
-}
-
-function openReport(where) {
-  openDetail(`
-    <h1 class="detail-title">Нашёл ошибку?</h1>
-    <p class="detail-text">Неверный кабинет или телефон, место закрылось, что-то непонятно — напиши. Сообщение получит команда «Субо».</p>
-    <p class="report-where">Раздел: ${esc(where)}</p>
-    <textarea class="field" id="reportText" rows="5" maxlength="1000" placeholder="Например: у преподавателя теперь кабинет 305"></textarea>
-    <input class="field" id="reportContact" maxlength="100" autocomplete="off" placeholder="Как тебе ответить (необязательно)">
-    <button class="primary" id="reportSend" data-act="${act(() => sendReport(where))}">Отправить</button>
-    <p class="group-footer center">Мы не видим твоё имя и номер — только то, что ты напишешь.</p>
-  `);
-}
-
-async function sendReport(where) {
-  const text = $("#reportText").value.trim();
-  const contact = $("#reportContact").value.trim();
-  const btn = $("#reportSend");
-  if (text.length < 5) {
-    showToast("Напиши чуть подробнее, что не так");
-    $("#reportText").focus();
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = "Отправляю…";
-  const platform = inTelegram ? "Telegram" : launchedFromVK() ? "ВКонтакте" : "сайт";
-  try {
-    const res = await fetch(REPORT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, contact, where, platform }),
-    });
-    if (!res.ok) throw new Error(String(res.status));
-    showToast("Спасибо! Сообщение отправлено команде");
-    goBack();
-  } catch {
-    showToast("Не получилось отправить. Проверь интернет и попробуй ещё раз");
-    btn.disabled = false;
-    btn.textContent = "Отправить";
-  }
-}
-
 // ---------- Важное: выплаты, общежитие, справки ----------
 
 function openImportant(it) {
@@ -533,7 +481,6 @@ function openImportant(it) {
     ${contactRows.length ? group(contactRows, "Контакты", "Нажми на номер, чтобы позвонить. Добавочный называй после ответа на 97-42-06.") : ""}
     ${it.sources.length ? group(it.sources.map((src) => row({ title: src.title, href: src.link, external: true, chevron: true })), "Источник",
       hasAsk ? "Пункты с пометкой «Уточнить в колледже» на сайте прямо не написаны." : "") : ""}
-    ${reportGroup(`Важное: ${it.title}`)}
   `);
 }
 
@@ -550,7 +497,6 @@ function openGuide(g) {
       <h2 class="group-caption">${esc(sec.title)}</h2>
       <ol class="steps">${sec.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>`).join("")}
     ${group(g.sources.map((src) => row({ title: src.title, href: src.link, external: true, chevron: true })), "Источники")}
-    ${reportGroup(`Безопасность: ${g.title}`)}
   `);
 }
 
@@ -762,7 +708,6 @@ function openPerson(p) {
     ${p.extra ? `<p class="person-extra">${esc(p.extra)}</p>` : ""}
     ${t && t.subjects.length ? group(t.subjects.map((s) => row({ title: s })), "Ведёт") : ""}
     ${group(rows, "", [phoneHint(p), where ? "Где найти — по расписаниям групп на портале НовГУ, текущий семестр. Номер с ~ — аудитория, где чаще всего его пары, а не кабинет." : ""].filter(Boolean).join(" "))}
-    ${reportGroup(`Педагоги: ${p.name}`)}
   `);
 }
 
@@ -844,7 +789,6 @@ function openPlace(p) {
     <p class="detail-text">${esc(p.note)}</p>
     ${group(facts)}
     ${links.length ? group(links) : ""}
-    ${reportGroup(`Рядом: ${p.name}`)}
   `);
 }
 
