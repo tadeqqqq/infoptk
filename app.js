@@ -33,6 +33,11 @@ const icons = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   chevron: '<path d="M9 5l7 7-7 7"/>',
   check: '<path d="M5.5 12.5l4 4 9-9"/>',
+  cup: '<path d="M5 9h11v5a5 5 0 01-5 5h-1a5 5 0 01-5-5z"/><path d="M16 10.5h1.5a2.5 2.5 0 010 5H16M8.5 3.5v2.5M12.5 3.5v2.5"/>',
+  cart: '<path d="M3.5 4.5h2.2l2 10.5h10l2-7.5H6.6"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>',
+  swim: '<path d="M3 17c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2M3 20.5c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2"/><circle cx="16" cy="6.5" r="1.8"/><path d="M5.5 13.5l4-4.5 3 2.5 3-2"/>',
+  skate: '<path d="M5 4.5h5l1 6 6 1.5c1.8.5 3 1.8 3 3.5H5zM4 19.5h16M8 15v4.5M16 15v4.5"/>',
+  climb: '<path d="M4 20.5L10 6l4 6 2.5-3.5L20.5 20.5z"/><path d="M8.3 10.2l1.7 1.3 1.8-2.3"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5.5H4.5V6H10"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -792,24 +797,60 @@ function openPlace(p) {
   `);
 }
 
+// Иконка места: по разделу или по виду (еда / спорт)
+// Иконка только там, где она что-то говорит: кофе, магазин, бассейн, каток, скалодром. У столовых и залов без иконки
+const placeIcon = (p) => p.icon || (p.section === "Кофе и выпечка" ? "cup" : p.section === "Магазины" ? "cart" : "");
+
+// Короткий адрес для подписи: без «Б. Санкт-Петербургская», если место в ТЦ
+const shortWhere = (w) => w.replace(/,\s*Б\. Санкт-Петербургская,\s*\d+.*$/, "");
+
 function renderNearby() {
   const view = $("#view-nearby");
-  const list = DATA[nearbyKind];
+  const kind = nearbyKind;
+  const all = DATA[kind];
+  const main = all.find((p) => p.main);
+  const list = all.filter((p) => p !== main);
   // Раздел места: свой (section) или по умолчанию «В колледже» / «Рядом с колледжем»
   const sectionOf = (p) => p.section || (!p.walk && !p.map ? "В колледже" : "Рядом с колледжем");
   const sections = [...new Set(list.map(sectionOf))];
   const placeRow = (p) => row({
-    photo: p.photo,
-    title: p.name, subtitle: p.price || p.where, value: p.walk, chevron: true, onClick: () => openPlace(p),
+    photo: p.photo, icon: p.photo ? "" : placeIcon(p),
+    title: p.name,
+    subtitle: p.price || shortWhere(p.where),
+    value: p.walk,
+    chevron: true, onClick: () => openPlace(p),
   });
+  const close = list.filter((p) => /≈\s*[1-5] мин/.test(p.walk || "")).length;
+  const tip = kind === "food"
+    ? { icon: "clock", title: `Обед с ${DATA.lunch.start} до ${DATA.lunch.end}`,
+        sub: `Первокурсников отпускают в ${DATA.lunch.firstYear}. До ${close} ${close % 10 === 1 && close % 100 !== 11 ? "место" : [2, 3, 4].includes(close % 10) && ![12, 13, 14].includes(close % 100) ? "места" : "мест"} из списка ниже идти не больше 5 минут — успеешь за обед.` }
+    : { icon: "ball", title: "Секции НовГУ — бесплатно",
+        sub: "Баскетбол, волейбол, футбол и ещё 17 секций спортклуба. Нажми, чтобы узнать, как записаться.",
+        place: all.find((p) => p.link) };
   view.innerHTML = `
     ${band("Рядом", "Где поесть и заняться спортом")}
     <div class="switch" role="group" aria-label="Что показать">
-      <button class="switch-btn" aria-pressed="${nearbyKind === "food"}" data-kind="food">${svg("food")}Еда</button>
-      <button class="switch-btn" aria-pressed="${nearbyKind === "sport"}" data-kind="sport">${svg("ball")}Спорт</button>
+      <button class="switch-btn" aria-pressed="${kind === "food"}" data-kind="food">${svg("food")}Еда</button>
+      <button class="switch-btn" aria-pressed="${kind === "sport"}" data-kind="sport">${svg("ball")}Спорт</button>
     </div>
+    ${main ? `
+      <button class="place-hero" data-act="${act(() => openPlace(main))}">
+        <img src="${url(main.photo)}" alt="" loading="lazy">
+        <span class="place-hero-text">
+          <b>${esc(main.name)}</b>
+          <span class="place-hero-where">${esc(main.where)}</span>
+          <span>${esc(main.note)}</span>
+        </span>
+      </button>` : ""}
+    <${tip.place ? `button data-act="${act(() => openPlace(tip.place))}"` : "div"} class="now place-tip">
+      <span class="row-icon">${svg(tip.icon)}</span>
+      <span class="now-text"><b>${esc(tip.title)}</b><span>${esc(tip.sub)}</span></span>
+      ${tip.place ? `<span class="row-chevron">${svg("chevron")}</span>` : ""}
+    </${tip.place ? "button" : "div"}>
     ${sections.map((name) => group(list.filter((p) => sectionOf(p) === name).map(placeRow), name)).join("")}
-    <p class="group-footer">Время пешком примерное. Цены по данным 2ГИС и сайта НовГУ на октябрь 2026. Если место закрылось, напиши команде.</p>
+    ${group([row({ icon: "pin", title: "Колледж на карте", subtitle: "Б. Санкт-Петербургская, 46 — посмотри, что вокруг",
+      href: mapUrl("Великий Новгород, Большая Санкт-Петербургская, 46"), external: true, chevron: true })], "Карта")}
+    <p class="group-footer">Время пешком примерное. Цены по данным 2ГИС и сайта НовГУ на ноябрь 2026. Если место закрылось, напиши команде.</p>
   `;
   view.querySelectorAll(".switch-btn").forEach((b) => b.addEventListener("click", () => {
     nearbyKind = b.dataset.kind;
