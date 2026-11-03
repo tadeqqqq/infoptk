@@ -33,11 +33,6 @@ const icons = {
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   chevron: '<path d="M9 5l7 7-7 7"/>',
   check: '<path d="M5.5 12.5l4 4 9-9"/>',
-  cup: '<path d="M5 9h11v5a5 5 0 01-5 5h-1a5 5 0 01-5-5z"/><path d="M16 10.5h1.5a2.5 2.5 0 010 5H16M8.5 3.5v2.5M12.5 3.5v2.5"/>',
-  cart: '<path d="M3.5 4.5h2.2l2 10.5h10l2-7.5H6.6"/><circle cx="9" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/>',
-  swim: '<path d="M3 17c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2M3 20.5c1.5 0 1.5-1.2 3-1.2s1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2 1.5-1.2 3-1.2 1.5 1.2 3 1.2"/><circle cx="16" cy="6.5" r="1.8"/><path d="M5.5 13.5l4-4.5 3 2.5 3-2"/>',
-  skate: '<path d="M5 4.5h5l1 6 6 1.5c1.8.5 3 1.8 3 3.5H5zM4 19.5h16M8 15v4.5M16 15v4.5"/>',
-  climb: '<path d="M4 20.5L10 6l4 6 2.5-3.5L20.5 20.5z"/><path d="M8.3 10.2l1.7 1.3 1.8-2.3"/>',
   external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5.5H4.5V6H10"/>',
 };
 const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -797,10 +792,6 @@ function openPlace(p) {
   `);
 }
 
-// Иконка места: по разделу или по виду (еда / спорт)
-// Иконка только там, где она что-то говорит: кофе, магазин, бассейн, каток, скалодром. У столовых и залов без иконки
-const placeIcon = (p) => p.icon || (p.section === "Кофе и выпечка" ? "cup" : p.section === "Магазины" ? "cart" : "");
-
 // Короткий адрес для подписи: без «Б. Санкт-Петербургская», если место в ТЦ
 const shortWhere = (w) => w.replace(/,\s*Б\. Санкт-Петербургская,\s*\d+.*$/, "");
 
@@ -814,7 +805,7 @@ function renderNearby() {
   const sectionOf = (p) => p.section || (!p.walk && !p.map ? "В колледже" : "Рядом с колледжем");
   const sections = [...new Set(list.map(sectionOf))];
   const placeRow = (p) => row({
-    photo: p.photo, icon: p.photo ? "" : placeIcon(p),
+    photo: p.photo,  // значков у мест нет: раздел и так подписан
     title: p.name,
     subtitle: p.price || shortWhere(p.where),
     value: p.walk,
